@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<!-- Copyright (c) 2026 Marina Bay's Cafe. All rights reserved. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="security.js"></script>
+<script src="firebase-config.js"></script>
+<script src="cloud.js" data-uses="inventory"></script>
+<meta name="robots" content="noindex, nofollow">
+<meta name="author" content="Marina Bay's Cafe">
+<meta name="copyright" content="Copyright 2026 Marina Bay's Cafe. All rights reserved.">
+<title>Inventory | Marina Bay's Cafe</title>
+<meta name="theme-color" content="#0d3a4e">
+<link rel="icon" type="image/png" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/counter-apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<style>
+  .tabs { grid-template-columns: repeat(2, 1fr); }
+  .grp { padding: 14px 16px 6px; font-size: 13px; font-weight: 650; color: var(--muted); background: var(--soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .irow { display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--line); min-height: 58px; }
+  .irow .what { flex: 1; min-width: 0; background: none; border: none; text-align: left; font: inherit; color: var(--ink); padding: 4px 0; cursor: pointer; }
+  .irow .what b { display: block; font-weight: 600; line-height: 1.25; }
+  .irow .what span { display: block; font-size: 12px; color: var(--muted); }
+  .irow.out .what b { color: var(--bad); }
+  .step { display: flex; align-items: center; gap: 4px; flex: none; }
+  .step button { width: 38px; height: 38px; border-radius: 6px; font: inherit; font-size: 22px; line-height: 1; cursor: pointer; border: 1.5px solid #c9c1b5; background: #fff; color: var(--ink); }
+  .step button.plus { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .step button:disabled { opacity: .35; }
+  .step input { width: 56px; height: 38px; text-align: center; font: inherit; font-weight: 650; border: none; border-bottom: 1.5px solid #c9c1b5; background: none; color: var(--ink); border-radius: 0; -moz-appearance: textfield; }
+  .step input::-webkit-outer-spin-button, .step input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .step input:focus { outline: none; border-bottom-color: var(--teal); }
+  .summary { padding: 8px 16px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .addbar { border-top: 1px solid var(--line); padding: 10px 16px; background: #fff; }
+  .addbar .add-btn { margin: 0; width: 100%; }
+</style>
+<link rel="stylesheet" href="wide.css">
+<link rel="stylesheet" href="brand.css">
+</head>
+<body class="pg-inventory">
+<div class="app">
+  <div class="top">
+    <a href="index.html" aria-label="Home" style="display:flex"><img src="icons/logo-64.png" alt=""></a>
+    <div><b>Marina Bay's Cafe</b><span class="sub">Inventory</span></div>
+    <nav class="apps" aria-label="Apps"><a href="index.html">All apps</a></nav>
+  </div>
+
+  <!-- STOCK -->
+  <div id="stockTop">
+    <div class="searchbar"><input id="q" type="search" placeholder="Search the stock list" autocomplete="off"></div>
+    <div class="chips" id="chips"></div>
+    <div class="summary" id="summary"></div>
+  </div>
+
+  <main id="main">
+    <section class="view on" id="v-stock"><div id="list"></div></section>
+
+    <!-- ITEM EDIT -->
+    <section class="view" id="v-item">
+      <div class="editbar"><button class="icon-btn" id="back" aria-label="Back">&#8249;</button><b id="itemTitle">Item</b></div>
+      <div class="frow"><label for="iName">Name</label><input class="field" id="iName" type="text" maxlength="60" autocomplete="off"></div>
+      <div class="frow"><label for="iGroup">Group</label><input class="field" id="iGroup" type="text" list="groups" maxlength="30" placeholder="Cups, Syrups..." autocomplete="off"><datalist id="groups"></datalist></div>
+      <div class="frow"><label for="iQty">Amount</label><input class="field num" id="iQty" type="number" inputmode="numeric" min="0" step="1" placeholder="Not counted"></div>
+      <div class="frow"><label for="iUnit">Unit</label><input class="field" id="iUnit" type="text" maxlength="15" placeholder="Optional, like pcs or bottles" autocomplete="off"></div>
+      <div class="block"><label for="iNote">Note</label><textarea class="field" id="iNote" rows="2" maxlength="200"></textarea></div>
+      <p class="help" id="iUpdated"></p>
+      <div class="actions"><button class="primary" id="saveItem">Save</button><button class="text-btn danger" id="delItem">Delete</button></div>
+    </section>
+
+    <!-- DATA -->
+    <section class="view" id="v-data">
+      <div class="prow" style="cursor:default"><div class="what"><b id="stat"></b><span class="s">The starting list comes from inventory-default.js. Changes made here are saved on this device.</span></div></div>
+      <button class="prow" id="backup"><div class="what"><b>Save a backup</b><span class="s">Downloads the whole stock list as a file</span></div><i>&#8250;</i></button>
+      <button class="prow" id="restore"><div class="what"><b>Restore from a backup</b><span class="s">Replaces the list with a saved backup file</span></div><i>&#8250;</i></button>
+      <input type="file" id="file" accept=".json,application/json" hidden>
+      <button class="prow" id="csv"><div class="what"><b>Export to spreadsheet (CSV)</b><span class="s">One row per item</span></div><i>&#8250;</i></button>
+      <button class="prow" id="reset"><div class="what"><b style="color:var(--bad)">Reset to the starting list</b><span class="s">Goes back to the starting list with every amount at zero</span></div><i>&#8250;</i></button>
+    </section>
+  </main>
+
+  <div class="addbar" id="addbar"><button class="add-btn" id="addItem">Add item</button></div>
+  <nav class="tabs">
+    <button class="tab on" data-v="stock">Stock</button>
+    <button class="tab" data-v="data">Data</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="inventory-default.js"></script>
+<script src="app-data.js"></script>
+<script>
+(function () {
+  var D = window.MBData, esc = D.esc, $ = function (id) { return document.getElementById(id); };
+  var V = D.getInventory();
+  function persist(msg) { if (!D.saveInventory()) D.toast('Could not save. Storage may be full.'); else if (msg) D.toast(msg); }
+
+  var filter = 'all';
+  function groupsList() {
+    var seen = [];
+    V.items.forEach(function (i) { var g = i.group || 'Other'; if (seen.indexOf(g) === -1) seen.push(g); });
+    return seen;
+  }
+  function outCount() { return V.items.filter(function (i) { return i.qty === 0; }).length; }
+
+  /* ---------- stock list ---------- */
+  function paintChips() {
+    var gs = groupsList();
+    if (filter !== 'all' && filter !== 'out' && gs.indexOf(filter) === -1) filter = 'all';
+    var h = '<button class="chip' + (filter === 'all' ? ' on' : '') + '" data-f="all">All</button>' +
+      '<button class="chip' + (filter === 'out' ? ' on' : '') + '" data-f="out">Out of stock (' + outCount() + ')</button>';
+    gs.forEach(function (g) { h += '<button class="chip' + (filter === g ? ' on' : '') + '" data-f="' + esc(g) + '">' + esc(g) + '</button>'; });
+    $('chips').innerHTML = h;
+  }
+  $('chips').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-f]'); if (!b) return;
+    filter = b.getAttribute('data-f'); paintAll();
+    if (b.scrollIntoView) b.scrollIntoView({ inline: 'center', block: 'nearest' });
+  });
+  $('q').addEventListener('input', paintList);
+
+  function whatHtml(it) {
+    var sub = [];
+    if (it.qty === 0) sub.push('Out of stock'); else if (it.qty === null || it.qty === undefined) sub.push('Not counted');
+    if (it.unit) sub.push(it.unit);
+    if (it.note) sub.push(it.note);
+    return '<b>' + esc(it.name) + '</b>' + (sub.length ? '<span>' + esc(sub.join(' · ')) + '</span>' : '');
+  }
+  function rowHtml(it) {
+    var out = it.qty === 0;
+    return '<div class="irow' + (out ? ' out' : '') + '" data-id="' + esc(it.id) + '"><button class="what" data-edit="' + esc(it.id) + '">' + whatHtml(it) + '</button>' +
+      '<div class="step"><button data-m="' + esc(it.id) + '" aria-label="One less"' + (!it.qty ? ' disabled' : '') + '>&minus;</button>' +
+      '<input class="num" type="number" inputmode="numeric" min="0" step="1" data-q="' + esc(it.id) + '" value="' + (it.qty === null || it.qty === undefined ? '' : it.qty) + '" placeholder="-" aria-label="Amount of ' + esc(it.name) + '">' +
+      '<button class="plus" data-p="' + esc(it.id) + '" aria-label="One more">+</button></div></div>';
+  }
+  function paintList() {
+    var q = $('q').value.trim().toLowerCase(), h = '', lastG = null, n = 0;
+    V.items.forEach(function (it) {
+      var g = it.group || 'Other';
+      if (filter === 'out' && it.qty !== 0) return;
+      if (filter !== 'all' && filter !== 'out' && g !== filter) return;
+      if (q && (it.name + ' ' + g).toLowerCase().indexOf(q) === -1) return;
+      if (filter === 'all' || filter === 'out' || q) { /* headings only when mixed groups are shown */ }
+      if (g !== lastG) { lastG = g; h += '<div class="grp">' + esc(g) + '</div>'; }
+      h += rowHtml(it); n++;
+    });
+    $('list').innerHTML = h || '<div class="empty">' + (V.items.length ? 'Nothing matches.' : 'The list is empty. Tap Add item to start.') + '</div>';
+    $('summary').textContent = V.items.length + ' items · ' + outCount() + ' out of stock' + (n !== V.items.length ? ' · showing ' + n : '');
+  }
+  function paintAll() { paintChips(); paintList(); }
+
+  function find(id) { return V.items.filter(function (i) { return i.id === id; })[0]; }
+  function setQty(id, qty) {
+    var it = find(id); if (!it) return;
+    it.qty = qty; it.updated = D.todayPH(); persist();
+  }
+  $('list').addEventListener('click', function (e) {
+    var p = e.target.closest('button[data-p]'), m = e.target.closest('button[data-m]'), ed = e.target.closest('button[data-edit]');
+    if (p) { var it = find(p.getAttribute('data-p')); setQty(it.id, (it.qty || 0) + 1); paintAll(); }
+    else if (m) { var it2 = find(m.getAttribute('data-m')); setQty(it2.id, Math.max(0, (it2.qty || 0) - 1)); paintAll(); }
+    else if (ed) openItem(ed.getAttribute('data-edit'));
+  });
+  $('list').addEventListener('change', function (e) {
+    var i = e.target.closest('input[data-q]'); if (!i) return;
+    var v = i.value.trim();
+    var id = i.getAttribute('data-q');
+    setQty(id, v === '' ? null : Math.max(0, Math.floor(Number(v)) || 0));
+    // update this row in place so a tap on a nearby button is not lost
+    var it = find(id), row = i.closest('.irow');
+    row.classList.toggle('out', it.qty === 0);
+    row.querySelector('.what').innerHTML = whatHtml(it);
+    row.querySelector('button[data-m]').disabled = !it.qty;
+    i.value = it.qty === null ? '' : it.qty;
+    paintChips();
+    $('summary').textContent = V.items.length + ' items · ' + outCount() + ' out of stock';
+  });
+  $('list').addEventListener('focusin', function (e) { if (e.target.matches('input[data-q]')) e.target.select(); });
+
+  /* ---------- item edit ---------- */
+  var ed = null, isNew = false;
+  function openItem(id) {
+    if (id) { ed = D.clone(find(id)); isNew = false; }
+    else {
+      var g = filter !== 'all' && filter !== 'out' ? filter : (V.items.length ? V.items[V.items.length - 1].group : 'Other');
+      ed = { id: D.uid('inv'), name: '', group: g || 'Other', qty: null, unit: '', note: '', updated: D.todayPH() }; isNew = true;
+    }
+    $('itemTitle').textContent = isNew ? 'Add item' : 'Edit item';
+    $('iName').value = ed.name; $('iGroup').value = ed.group || ''; $('iQty').value = ed.qty === null || ed.qty === undefined ? '' : ed.qty;
+    $('iUnit').value = ed.unit || ''; $('iNote').value = ed.note || '';
+    $('groups').innerHTML = groupsList().map(function (g) { return '<option value="' + esc(g) + '">'; }).join('');
+    $('iUpdated').textContent = isNew ? 'New items are added to the end of their group.' : 'Last changed ' + ed.updated;
+    $('delItem').style.display = isNew ? 'none' : '';
+    setView('item');
+  }
+  $('addItem').onclick = function () { openItem(null); };
+  $('back').onclick = function () { setView('stock'); };
+  $('saveItem').onclick = function () {
+    var name = $('iName').value.trim();
+    if (!name) { D.toast('Enter a name'); $('iName').focus(); return; }
+    var dup = V.items.filter(function (i) { return i.id !== ed.id && i.name.toLowerCase() === name.toLowerCase(); })[0];
+    if (dup && !confirm('"' + dup.name + '" is already on the list. Save anyway?')) return;
+    var qv = $('iQty').value.trim();
+    ed.name = name; ed.group = $('iGroup').value.trim() || 'Other';
+    ed.qty = qv === '' ? null : Math.max(0, Math.floor(Number(qv)) || 0);
+    ed.unit = $('iUnit').value.trim(); ed.note = $('iNote').value.trim(); ed.updated = D.todayPH();
+    var idx = -1; V.items.forEach(function (x, n) { if (x.id === ed.id) idx = n; });
+    if (idx === -1) {
+      // keep new items inside their group: insert after the last item of that group
+      var last = -1; V.items.forEach(function (x, n) { if ((x.group || 'Other') === ed.group) last = n; });
+      if (last === -1) V.items.push(ed); else V.items.splice(last + 1, 0, ed);
+    } else if ((V.items[idx].group || 'Other') !== ed.group) {
+      V.items.splice(idx, 1);
+      var last2 = -1; V.items.forEach(function (x, n) { if ((x.group || 'Other') === ed.group) last2 = n; });
+      if (last2 === -1) V.items.push(ed); else V.items.splice(last2 + 1, 0, ed);
+    } else V.items[idx] = ed;
+    persist('Saved'); setView('stock');
+  };
+  $('delItem').onclick = function () {
+    if (!confirm('Delete "' + ed.name + '" from the list?')) return;
+    V.items = V.items.filter(function (x) { return x.id !== ed.id; }); D.getInventory().items = V.items;
+    persist('Deleted'); setView('stock');
+  };
+
+  /* ---------- views ---------- */
+  function setView(v) {
+    ['stock', 'item', 'data'].forEach(function (n) { $('v-' + n).classList.toggle('on', n === v); });
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-v') === (v === 'data' ? 'data' : 'stock')); });
+    $('stockTop').style.display = v === 'stock' ? '' : 'none';
+    $('addbar').style.display = v === 'stock' ? '' : 'none';
+    $('main').scrollTop = 0;
+    if (v === 'stock') paintAll();
+    if (v === 'data') $('stat').textContent = V.items.length + ' items, ' + outCount() + ' out of stock';
+  }
+  document.querySelectorAll('.tab').forEach(function (t) { t.onclick = function () { setView(t.getAttribute('data-v')); }; });
+
+  /* ---------- data ---------- */
+  $('backup').onclick = function () { D.download('marina-bays-inventory-' + D.todayPH() + '.json', JSON.stringify(V)); D.toast('Backup saved'); };
+  $('restore').onclick = function () { $('file').click(); };
+  $('file').onchange = function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        var data = JSON.parse(rd.result);
+        if (!data || !Array.isArray(data.items)) throw 0;
+        if (confirm('Replace the current list with this backup (' + data.items.length + ' items)?')) {
+          D.setInventory(data); V = D.getInventory(); filter = 'all'; setView('data'); D.toast('List restored');
+        }
+      } catch (err) { alert('That file is not an inventory backup.'); }
+      $('file').value = '';
+    };
+    rd.readAsText(f);
+  };
+  $('csv').onclick = function () {
+    function q(s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; }
+    var lines = ['Group,Item,Amount,Unit,Note,Last changed'];
+    V.items.forEach(function (i) { lines.push([q(i.group), q(i.name), i.qty === null || i.qty === undefined ? '' : i.qty, q(i.unit), q(i.note), i.updated || ''].join(',')); });
+    D.download('marina-bays-inventory.csv', lines.join('\n'), 'text/csv'); D.toast('CSV saved');
+  };
+  $('reset').onclick = function () {
+    if (confirm('Remove all changes on this device and go back to the starting list with every amount at zero?')) {
+      V = D.resetInventory(); filter = 'all'; setView('data'); D.toast('List reset');
+    }
+  };
+
+  paintAll();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
