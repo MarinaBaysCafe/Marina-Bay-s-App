@@ -93,21 +93,34 @@
   /* ---------- menu list ---------- */
   var view = 'best';
   function opt(id, name) { return '<option value="' + esc(id) + '"' + (id === view ? ' selected' : '') + '>' + esc(name) + '</option>'; }
-  function paintChips() {
-    var m = D.getMenu(), searching = !!$('q').value.trim(), h = '', groups = [], loose = [];
+  // sections in the same order as the drop-down: Best sellers, All, each group, loose sections, Extras
+  function sections() {
+    var m = D.getMenu(), groups = [], loose = [];
     m.categories.forEach(function (c) {
       if (!c.group) { loose.push(c); return; }
       var g = groups.filter(function (x) { return x.name === c.group; })[0];
       if (!g) { g = { name: c.group, cats: [] }; groups.push(g); }
       g.cats.push(c);
     });
+    return { groups: groups, loose: loose, extras: !!(m.addonGroups || []).length };
+  }
+  function viewOrder() {
+    var sc = sections(), o = ['best', 'all'];
+    sc.groups.forEach(function (g) { g.cats.forEach(function (c) { o.push(c.id); }); });
+    sc.loose.forEach(function (c) { o.push(c.id); });
+    if (sc.extras) o.push('extras');
+    return o;
+  }
+  function paintChips() {
+    var searching = !!$('q').value.trim(), h = '', sc = sections();
     if (searching) h += '<option value="" selected>Search results</option>';
     h += opt('best', 'Best sellers');
-    groups.forEach(function (g) {
+    h += opt('all', 'All');
+    sc.groups.forEach(function (g) {
       h += '<optgroup label="' + esc(g.name) + '">' + g.cats.map(function (c) { return opt(c.id, c.name); }).join('') + '</optgroup>';
     });
-    loose.forEach(function (c) { h += opt(c.id, c.name); });
-    if ((m.addonGroups || []).length) h += opt('extras', 'Extras');
+    sc.loose.forEach(function (c) { h += opt(c.id, c.name); });
+    if (sc.extras) h += opt('extras', 'Extras');
     $('chips').innerHTML = '<select class="catsel" id="catSel" aria-label="Menu section">' + h + '</select>';
   }
   function rowHtml(it, showCat) {
@@ -128,6 +141,17 @@
     } else if (view === 'best') {
       list = m.items.filter(function (it) { return it.best; });
       h = list.map(function (it) { return rowHtml(it, true); }).join('') || '<div class="empty">No best sellers marked yet. You can mark them in the Menu editor.</div>';
+    } else if (view === 'all') {
+      var known = {};
+      viewOrder().forEach(function (id) { var c = D.cat(id); if (c) known[id] = true; });
+      viewOrder().forEach(function (id) {
+        var c = D.cat(id), its = c ? D.itemsIn(id) : [];
+        if (!c || !its.length) return;
+        h += '<div class="sect">' + esc(c.name) + '</div>' + its.map(function (it) { return rowHtml(it, false); }).join('');
+      });
+      var orphans = m.items.filter(function (it) { return !known[it.cat]; });
+      if (orphans.length) h += '<div class="sect">Other</div>' + orphans.map(function (it) { return rowHtml(it, true); }).join('');
+      if (!h) h = '<div class="empty">The menu is empty.</div>';
     } else if (view === 'extras') {
       m.addonGroups.forEach(function (g) {
         h += '<div class="sect">' + esc(g.name) + '</div>';
@@ -150,6 +174,25 @@
     view = e.target.value; $('q').value = ''; paintChips(); paintItems();
   });
   $('q').addEventListener('input', function () { paintChips(); paintItems(); });
+
+  /* ---------- swipe the item list to move between sections ---------- */
+  var SWIPE_RIGHT_IS_NEXT = true; // true: swipe right goes to the next section. false: swipe left does.
+  var sw = null;
+  $('main').addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1 || e.target.closest('input, select, textarea')) { sw = null; return; }
+    sw = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+  }, { passive: true });
+  $('main').addEventListener('touchend', function (e) {
+    if (!sw || $('q').value.trim()) { sw = null; return; }
+    var t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y, fast = Date.now() - sw.t < 700;
+    sw = null;
+    if (!fast || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    var o = viewOrder(), i = o.indexOf(view);
+    if (i < 0) return;
+    var next = (dx > 0) === SWIPE_RIGHT_IS_NEXT ? i + 1 : i - 1;
+    if (next < 0 || next >= o.length) return;
+    view = o[next]; paintChips(); paintItems();
+  }, { passive: true });
 
   $('items').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-id]');

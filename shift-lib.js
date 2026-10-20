@@ -25,6 +25,18 @@
     email: 'marinabayscafe@gmail.com',
     lines: ['Calm in every cup...', 'Thanks for sailing by!']
   };
+  // The details printed on POS receipts. They come from Printers > Receipt on this device;
+  // anything not set there falls back to the CAFE values above.
+  function cafe() {
+    var r = (window.MBPrinter && window.MBPrinter.state.receipt) || {};
+    function pick(k, d) { return typeof r[k] === 'string' ? r[k] : d; }
+    return {
+      address: pick('address', CAFE.address), tin: pick('tin', CAFE.tin),
+      phone: pick('phone', CAFE.phone), email: pick('email', CAFE.email),
+      thanks: pick('thanks', CAFE.lines.join('\n'))
+    };
+  }
+  function lines(t) { return String(t || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean); }
   function typeText(t) { return t === 'take' ? 'Take out' : 'Dine in'; }
   var DENOMS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
 
@@ -273,10 +285,9 @@
     var r = (window.MBPrinter && window.MBPrinter.state.receipt) || {};
     p.logo();
     p.center(r.shop || STORE, { b: true });
-    p.center(CAFE.address);
-    p.feed(1);
-    p.center('TIN #' + CAFE.tin);
-    p.feed(1);
+    var c = cafe();
+    if (lines(c.address).length) { lines(c.address).forEach(function (l) { p.center(l); }); p.feed(1); }
+    if (String(c.tin).trim()) { p.center('TIN #' + String(c.tin).trim()); p.feed(1); }
     if (o.emp) p.text('Employee: ' + o.emp);
     p.text('POS: ' + (o.pos || posName()));
     p.rule('.');
@@ -297,9 +308,10 @@
   // bottom part: contact, thank you lines, date and receipt number
   function slipFoot(p, when, no) {
     p.rule('.');
-    p.center(CAFE.phone);
-    p.center(CAFE.email);
-    CAFE.lines.forEach(function (ln) { p.feed(1); p.center(ln); });
+    var c = cafe();
+    if (String(c.phone).trim()) p.center(String(c.phone).trim());
+    if (String(c.email).trim()) p.center(String(c.email).trim());
+    lines(c.thanks).forEach(function (ln) { p.feed(1); p.center(ln); });
     p.feed(1);
     p.row(when, no || '');
   }
@@ -331,6 +343,6 @@
     sales: function () { return sales.sales; }, salesOf: salesOf, makeSale: makeSale, addSale: addSale, refund: refund,
     shifts: function () { return shifts; }, saveShifts: saveShifts, index: buildIndex, day: day, month: month, deductInventory: deductInventory, current: current, start: start, close: close, report: report, lastActual: lastActual,
     posName: posName, setPosName: setPosName, lastUser: lastUser, countedCash: countedCash, expensesBetween: expensesBetween,
-    reportReceipt: reportReceipt, saleReceipt: saleReceipt, orderReceipt: orderReceipt, typeText: typeText
+    reportReceipt: reportReceipt, saleReceipt: saleReceipt, orderReceipt: orderReceipt, typeText: typeText, cafe: cafe
   };
 })();

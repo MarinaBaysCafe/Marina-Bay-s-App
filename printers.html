@@ -132,10 +132,18 @@
     <section class="view" id="v-receipt">
       <div class="sect">Receipt header and footer</div>
       <div class="block"><label for="rShop">Shop name</label><input class="field" id="rShop" type="text" maxlength="40" style="max-width:none;width:100%;text-align:left" autocomplete="off"></div>
-      <div class="block"><label for="rDetails">Details under the name</label><small>Address, phone, or anything else. One line per row.</small><textarea class="field" id="rDetails" rows="3" maxlength="200"></textarea></div>
-      <div class="block"><label for="rFooter">Message at the bottom</label><small>For example, a thank you line.</small><textarea class="field" id="rFooter" rows="2" maxlength="120"></textarea></div>
+      <div class="block"><label for="rDetails">Details under the name</label><small>Money counter, expense and shift report receipts only. Address, phone, or anything else. One line per row.</small><textarea class="field" id="rDetails" rows="3" maxlength="200"></textarea></div>
+      <div class="block"><label for="rFooter">Message at the bottom</label><small>Money counter, expense and shift report receipts only. For example, a thank you line.</small><textarea class="field" id="rFooter" rows="2" maxlength="120"></textarea></div>
       <label class="check"><input type="checkbox" id="rLogo"> Print the logo at the top</label>
       <p class="help">The logo is printed as a small black and white picture. If your printer prints strange characters at the top, turn this off.</p>
+      <div class="sect">POS receipt details</div>
+      <p class="help">Printed on POS order and sales receipts. Saved on this device only, so set them on each phone or tablet that prints. Leave a box empty to leave that line off.</p>
+      <div class="block"><label for="rAddr">Address</label><textarea class="field" id="rAddr" rows="3" maxlength="200"></textarea></div>
+      <div class="block"><label for="rTin">TIN</label><input class="field" id="rTin" type="text" maxlength="30" style="max-width:none;width:100%;text-align:left" autocomplete="off"></div>
+      <div class="block"><label for="rPhone">Phone</label><input class="field" id="rPhone" type="text" maxlength="30" style="max-width:none;width:100%;text-align:left" autocomplete="off"></div>
+      <div class="block"><label for="rEmail">Email</label><input class="field" id="rEmail" type="text" maxlength="60" style="max-width:none;width:100%;text-align:left" autocomplete="off"></div>
+      <div class="block"><label for="rThanks">Thank you lines</label><small>One line per row, printed at the bottom.</small><textarea class="field" id="rThanks" rows="3" maxlength="160"></textarea></div>
+      <div class="actions" style="padding-top:0"><button class="text-btn" id="rReset" type="button">Reset POS details to the original</button></div>
       <div class="frow"><label for="pvWidth">Preview paper</label>
         <select class="field" id="pvWidth"><option value="58">58 mm</option><option value="80">80 mm</option></select></div>
       <div class="sect">Preview (POS receipt)</div>
@@ -286,8 +294,17 @@
   function paintReceipt() {
     $('rLogo').checked = S.receipt.logo !== false;
     $('rShop').value = S.receipt.shop || ''; $('rDetails').value = S.receipt.details || ''; $('rFooter').value = S.receipt.footer || '';
+    var c = window.MBShift.cafe();
+    $('rAddr').value = c.address; $('rTin').value = c.tin; $('rPhone').value = c.phone; $('rEmail').value = c.email; $('rThanks').value = c.thanks;
     paintPreview();
   }
+  [['rAddr', 'address'], ['rTin', 'tin'], ['rPhone', 'phone'], ['rEmail', 'email'], ['rThanks', 'thanks']].forEach(function (m) {
+    $(m[0]).addEventListener('input', function () { S.receipt[m[1]] = $(m[0]).value; P.save(); paintPreview(); });
+  });
+  $('rReset').onclick = function () {
+    ['address', 'tin', 'phone', 'email', 'thanks'].forEach(function (k) { delete S.receipt[k]; });
+    P.save(); paintReceipt();
+  };
   [['rShop', 'shop'], ['rDetails', 'details'], ['rFooter', 'footer']].forEach(function (m) {
     $(m[0]).addEventListener('input', function () { S.receipt[m[1]] = $(m[0]).value; P.save(); paintPreview(); });
   });
