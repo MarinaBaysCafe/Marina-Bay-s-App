@@ -66,7 +66,7 @@
 (function () {
   var D = window.MBData, S = window.MBShift, $ = function (id) { return document.getElementById(id); };
   var KEYS = { menu: 'marinabays_menu_v1', inventory: 'marinabays_inventory_v1', recipes: 'marinabays_recipes_v1', counter: 'marinabays_money_v1',
-               expenses: 'marinabays_expenses_v1', sales: 'marinabays_sales_v1', shifts: 'marinabays_shifts_v1', config: 'marinabays_config_v1', invlog: 'marinabays_invlog_v1' };
+               expenses: 'marinabays_expenses_v1', sales: 'marinabays_sales_v1', shifts: 'marinabays_shifts_v1', config: 'marinabays_config_v1', invlog: 'marinabays_invlog_v2' };
 
   function paintStats() {
     var inv = D.getInventory().items, m = D.getMenu(), idx = S.index(), days = Object.keys(idx).length;
@@ -120,7 +120,7 @@
       ex.days = {}; localStorage.setItem(KEYS.expenses, JSON.stringify(ex)); did.push('expenses');
     }
     if ($('rInv').checked) {
-      var inv = D.getInventory(); inv.items.forEach(function (i) { i.qty = 0; i.updated = ''; }); D.saveInventory(); did.push('inventory');
+      var inv = D.getInventory(); inv.items.forEach(function (i) { i.qty = 0; i.updated = ''; }); D.saveInventory(); localStorage.removeItem(KEYS.invlog); did.push('inventory');
     }
     if ($('rRec').checked) { D.setRecipes({ recipes: [] }); did.push('recipes'); }
     if ($('rMenu').checked) { D.resetMenu(); did.push('menu'); }

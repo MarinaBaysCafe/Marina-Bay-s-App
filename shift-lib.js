@@ -199,7 +199,7 @@
       Object.keys(map || {}).forEach(function (k) {
         var it = find(k); if (!it) return;
         var before = it.qty == null ? 0 : it.qty, after = Math.max(0, before - map[k]);
-        it.qty = after; it.updated = phDate(Date.now()); used.push({ name: it.name, used: map[k], before: before, after: after });
+        it.qty = after; it.updated = phDate(Date.now()); if (window.MBInvLog) window.MBInvLog.logAuto(it.id, before, after); used.push({ name: it.name, used: map[k], before: before, after: after });
       });
     });
     if (used.length) D.saveInventory();

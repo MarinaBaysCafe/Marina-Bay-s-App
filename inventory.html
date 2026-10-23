@@ -36,6 +36,16 @@
 </style>
 <link rel="stylesheet" href="wide.css">
 <link rel="stylesheet" href="brand.css">
+<style>
+  .rec { margin: 0 16px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .rec summary { padding: 11px 14px; font-weight: 650; cursor: pointer; }
+  .rec-body { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 8px; }
+  .rec-body .field { flex: 1 1 140px; min-width: 0; } .rec-body #recAmt { flex: 0 1 90px; }
+  .rec-kind { display: flex; border: 1px solid #c5d0d0; border-radius: 10px; overflow: hidden; }
+  .rec-kind button { border: 0; background: #fff; font: inherit; padding: 0 16px; min-height: 44px; cursor: pointer; }
+  .rec-kind button.on { background: var(--teal, #0d3a4e); color: #fff; font-weight: 650; }
+  .rec-note { padding: 0 14px 12px; font-size: 12px; color: var(--muted); } .rec-note a { color: var(--teal); font-weight: 650; }
+</style>
 </head>
 <body class="pg-inventory">
 <div class="app">
@@ -48,6 +58,16 @@
   <!-- STOCK -->
   <div id="stockTop">
     <div class="searchbar"><input id="q" type="search" placeholder="Search the stock list" autocomplete="off"></div>
+    <details class="rec" id="rec"><summary>Record used or added stock</summary>
+      <div class="rec-body">
+        <div class="rec-kind"><button type="button" data-kind="used" class="on">Used</button><button type="button" data-kind="add">Added</button></div>
+        <input class="field" id="recQ" type="search" placeholder="Search item" autocomplete="off">
+        <select class="field" id="recSel"></select>
+        <input class="field num" id="recAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="Amount">
+        <button class="primary" id="recDone" type="button">Done</button>
+      </div>
+      <div class="rec-note">Used is for loss or anything not counted from sales. Cups and lids come off automatically when a shift is closed. Changing a count with the + and &minus; buttons is recorded too. <a href="calendar.html" id="calLink">Open the calendar</a> to see Beg, Added, Used and End per day, and to save it as .xlsx.</div>
+    </details>
     <div class="chips" id="chips"></div>
     <div class="summary" id="summary"></div>
   </div>
@@ -88,6 +108,7 @@
 
 <script src="inventory-default.js"></script>
 <script src="app-data.js"></script>
+<script src="inv-log.js"></script>
 <script src="pos-config.js"></script>
 <script>
 (function () {
@@ -152,7 +173,8 @@
   function find(id) { return V.items.filter(function (i) { return i.id === id; })[0]; }
   function setQty(id, qty) {
     var it = find(id); if (!it) return;
-    it.qty = qty; it.updated = D.todayPH(); persist();
+    var old = it.qty; it.qty = qty; it.updated = D.todayPH(); persist();
+    if (window.MBInvLog) MBInvLog.onQty(id, old, qty);
   }
   $('list').addEventListener('click', function (e) {
     var p = e.target.closest('button[data-p]'), m = e.target.closest('button[data-m]'), ed = e.target.closest('button[data-edit]');
@@ -205,6 +227,7 @@
     ed.qty = qv === '' ? null : Math.max(0, Math.floor(Number(qv)) || 0);
     ed.unit = $('iUnit').value.trim(); ed.note = $('iNote').value.trim(); ed.updated = D.todayPH();
     var idx = -1; V.items.forEach(function (x, n) { if (x.id === ed.id) idx = n; });
+    var oldQ = idx === -1 ? null : V.items[idx].qty;
     if (idx === -1) {
       // keep new items inside their group: insert after the last item of that group
       var last = -1; V.items.forEach(function (x, n) { if ((x.group || 'Other') === ed.group) last = n; });
@@ -214,7 +237,7 @@
       var last2 = -1; V.items.forEach(function (x, n) { if ((x.group || 'Other') === ed.group) last2 = n; });
       if (last2 === -1) V.items.push(ed); else V.items.splice(last2 + 1, 0, ed);
     } else V.items[idx] = ed;
-    persist('Saved'); setView('stock');
+    persist('Saved'); if (window.MBInvLog) MBInvLog.onQty(ed.id, oldQ, ed.qty); setView('stock');
   };
   $('delItem').onclick = function () {
     if (!confirm('Delete "' + ed.name + '" from the list?')) return;
@@ -223,6 +246,28 @@
   };
 
   /* ---------- views ---------- */
+  /* ---------- record used / added ---------- */
+  var recKind = 'used';
+  function recOpts() {
+    var q = $('recQ').value.trim().toLowerCase();
+    $('recSel').innerHTML = V.items.filter(function (i) { return !q || i.name.toLowerCase().indexOf(q) > -1; }).map(function (i) {
+      return '<option value="' + esc(i.id) + '">' + esc(i.name) + (i.unit ? ' (' + esc(i.unit) + ')' : '') + '</option>'; }).join('');
+  }
+  $('rec').addEventListener('toggle', function () { if ($('rec').open) recOpts(); });
+  $('recQ').addEventListener('input', recOpts);
+  $('rec').addEventListener('click', function (e) {
+    var k = e.target.closest('button[data-kind]');
+    if (k) { recKind = k.getAttribute('data-kind'); Array.prototype.forEach.call($('rec').querySelectorAll('.rec-kind button'), function (b) { b.classList.toggle('on', b === k); }); }
+  });
+  $('recDone').onclick = function () {
+    var n = parseFloat($('recAmt').value), id = $('recSel').value;
+    if (!id || !(n > 0)) { D.toast('Pick an item and enter an amount'); return; }
+    var msg = MBInvLog.adjust(recKind, id, n);
+    if (msg) { D.toast(msg); return; }
+    $('recAmt').value = ''; $('recQ').value = ''; recOpts(); paintAll(); D.toast('Saved');
+  };
+  $('calLink').href = 'calendar.html?date=' + MBInvLog.localToday();
+
   function setView(v) {
     ['stock', 'item', 'data'].forEach(function (n) { $('v-' + n).classList.toggle('on', n === v); });
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-v') === (v === 'data' ? 'data' : 'stock')); });

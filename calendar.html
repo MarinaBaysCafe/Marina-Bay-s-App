@@ -159,44 +159,47 @@
   }
 
 
-  var invSearch = '', invAll = false;
+  var invSearch = '', invAll = false, invKind = 'used';
+  function optHtml(rows) {
+    var q = invSearch.toLowerCase();
+    return rows.filter(function (r) { return !q || r.item.name.toLowerCase().indexOf(q) > -1; }).map(function (r) {
+      return '<option value="' + esc(r.item.id) + '">' + esc(r.item.name) + (r.item.unit ? ' (' + esc(r.item.unit) + ')' : '') + '</option>'; }).join('');
+  }
   function invHtml() {
     var rows = MBInvLog.range(selected, selected)[selected], h = '<div class="sect">Inventory</div>';
-    var shown = rows.filter(function (r) { return invAll || r.used > 0 || r.begSet || r.endSet; });
-    var q = invSearch.toLowerCase(), opts = rows.filter(function (r) { return !q || r.item.name.toLowerCase().indexOf(q) > -1; });
-    h += '<div class="inv-add"><input class="field" id="invQ" type="search" placeholder="Search item" value="' + esc(invSearch) + '">' +
-      '<select class="field" id="invSel">' + opts.map(function (r) { return '<option value="' + esc(r.item.id) + '">' + esc(r.item.name) + (r.item.unit ? ' (' + esc(r.item.unit) + ')' : '') + '</option>'; }).join('') + '</select>' +
-      '<input class="field num" id="invAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="Used">' +
-      '<button class="primary" id="invDone">Done</button></div>';
-    h += '<div class="inv-wrap"><table class="inv"><thead><tr><th>Item</th><th>Beg</th><th>Used</th><th>End</th><th>Units</th></tr></thead><tbody>';
+    var shown = rows.filter(function (r) { return invAll || r.used > 0 || r.added > 0; });
+    if (selected === today) {
+      h += '<div class="inv-add"><div class="seg2"><button data-kind="used" class="' + (invKind === 'used' ? 'on' : '') + '">Used</button><button data-kind="add" class="' + (invKind === 'add' ? 'on' : '') + '">Added</button></div>' +
+        '<input class="field" id="invQ" type="search" placeholder="Search item" value="' + esc(invSearch) + '">' +
+        '<select class="field" id="invSel">' + optHtml(rows) + '</select>' +
+        '<input class="field num" id="invAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="Amount">' +
+        '<button class="primary" id="invDone">Done</button></div>' +
+        '<div class="note" style="padding:0 16px 8px;font-size:12px;color:var(--muted)">Used is for loss or anything not counted from sales. Cups and lids are added automatically when a shift is closed. To fix a wrong count, recount on the Inventory page.</div>';
+    } else h += '<div class="note" style="padding:0 16px 8px;font-size:12px;color:var(--muted)">Stock can only be changed for today.</div>';
+    h += '<div class="inv-wrap"><table class="inv"><thead><tr><th>Item</th><th>Beg</th><th>Added</th><th>Used</th><th>End</th><th>Units</th></tr></thead><tbody>';
     var last = null;
     shown.forEach(function (r) {
-      var g = r.item.group || 'Other'; if (g !== last) { h += '<tr class="g"><td colspan="5">' + esc(g) + '</td></tr>'; last = g; }
-      h += '<tr><td>' + esc(r.item.name) + '</td>' +
-        '<td><input class="num" type="number" step="any" data-ov="beg" data-id="' + esc(r.item.id) + '" value="' + (r.beg == null ? '' : r.beg) + '"></td>' +
-        '<td class="num" title="Auto ' + r.auto + ' + manual ' + r.man + '">' + r.used + '</td>' +
-        '<td><input class="num" type="number" step="any" data-ov="end" data-id="' + esc(r.item.id) + '" value="' + (r.end == null ? '' : r.end) + '"></td>' +
-        '<td>' + esc(r.item.unit || '') + '</td></tr>';
+      var g = r.item.group || 'Other'; if (g !== last) { h += '<tr class="g"><td colspan="6">' + esc(g) + '</td></tr>'; last = g; }
+      h += '<tr><td>' + esc(r.item.name) + '</td><td class="num">' + (r.beg == null ? '' : r.beg) + '</td><td class="num">' + (r.added || '') + '</td>' +
+        '<td class="num" title="Shift ' + r.auto + ' + manual ' + r.man + '">' + (r.used || '') + '</td><td class="num">' + (r.end == null ? '' : r.end) + '</td><td>' + esc(r.item.unit || '') + '</td></tr>';
     });
-    if (!shown.length) h += '<tr><td colspan="5" class="none">No inventory activity. Add usage above or show all items.</td></tr>';
-    h += '</tbody></table></div><div class="links" style="padding-bottom:4px"><a href="#" id="invAll">' + (invAll ? 'Hide unused items' : 'Show all items') + '</a><a href="#" id="invX">Save as .xlsx</a></div>';
+    if (!shown.length) h += '<tr><td colspan="6" class="none">No inventory activity for this day.</td></tr>';
+    h += '</tbody></table></div><div class="links" style="padding-bottom:4px"><a href="#" id="invAll">' + (invAll ? 'Hide unchanged items' : 'Show all items') + '</a><a href="#" id="invX">Save as .xlsx</a></div>';
     return h;
   }
   $('dayPanel').addEventListener('input', function (e) {
     if (e.target.id !== 'invQ') return;
-    invSearch = e.target.value; var rows = MBInvLog.range(selected, selected)[selected], q = invSearch.toLowerCase();
-    $('invSel').innerHTML = rows.filter(function (r) { return !q || r.item.name.toLowerCase().indexOf(q) > -1; }).map(function (r) { return '<option value="' + esc(r.item.id) + '">' + esc(r.item.name) + (r.item.unit ? ' (' + esc(r.item.unit) + ')' : '') + '</option>'; }).join('');
-  });
-  $('dayPanel').addEventListener('change', function (e) {
-    var w = e.target.getAttribute('data-ov'); if (!w) return;
-    MBInvLog.setOverride(selected, e.target.getAttribute('data-id'), w, e.target.value); paintDay();
+    invSearch = e.target.value; $('invSel').innerHTML = optHtml(MBInvLog.range(selected, selected)[selected]);
   });
   $('dayPanel').addEventListener('click', function (e) {
-    var t = e.target;
+    var t = e.target, k = t.closest && t.closest('button[data-kind]');
+    if (k) { invKind = k.getAttribute('data-kind'); paintDay(); return; }
     if (t.id === 'invDone') {
       var n = parseFloat($('invAmt').value), id = $('invSel').value;
-      if (!id || !(n > 0)) { D.toast('Pick an item and enter the amount used'); return; }
-      if (!MBInvLog.addUsed(selected, id, n)) D.toast('Could not save. Storage may be full.'); else { invSearch = ''; paintDay(); D.toast('Saved'); }
+      if (!id || !(n > 0)) { D.toast('Pick an item and enter an amount'); return; }
+      var msg = MBInvLog.adjust(invKind, id, n);
+      if (msg) { D.toast(msg); return; }
+      invSearch = ''; paintDay(); D.toast('Saved');
     } else if (t.id === 'invAll') { e.preventDefault(); invAll = !invAll; paintDay(); }
     else if (t.id === 'invX') {
       e.preventDefault();

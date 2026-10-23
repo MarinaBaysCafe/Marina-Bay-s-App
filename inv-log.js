@@ -1,43 +1,58 @@
 /* Daily inventory log: beginning / used / ending per item per day, plus a small .xlsx writer.
    Used = automatic (cups and lids from sales) + manual entries. Beginning and ending can be typed over. */
 (function () {
-  var KEY = 'marinabays_invlog_v1', D = window.MBData, S = window.MBShift;
+  /* Ledger: every stock change is recorded with the stock level just before it (b), so each day reads
+     Beg + Added - Used = End, and Beg is the previous day's End. Kinds: auto (cups/lids taken out at shift close),
+     used (manual use or loss), add (restock), init (first count, changes nothing). */
+  var KEY = 'marinabays_invlog_v2';
+  function D() { return window.MBData; }
   function load() { try { var v = JSON.parse(localStorage.getItem(KEY)); if (v && v.days) return v; } catch (e) {} return { days: {} }; }
   var log = load();
   function save() { try { localStorage.setItem(KEY, JSON.stringify(log)); return true; } catch (e) { return false; } }
-  function rec(date, id, make) { var d = log.days[date]; if (!d) { if (!make) return null; d = log.days[date] = {}; } var r = d[id]; if (!r && make) r = d[id] = { man: [] }; return r || null; }
-  function items() { return D.getInventory().items || []; }
-  function autoUsed(date) {
-    var x = S.day(date), m = {};
-    [x.cups, x.lids].forEach(function (o) { Object.keys(o || {}).forEach(function (k) { m[k.toLowerCase()] = (m[k.toLowerCase()] || 0) + o[k]; }); });
-    return m;
-  }
-  function addDays(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  function items() { return D().getInventory().items || []; }
+  function item(id) { return items().filter(function (i) { return i.id === id; })[0]; }
   function localToday() { return new Date().toLocaleDateString('en-CA'); }
-  /* rows for each date in [from, to]; returns { date: [row] } where row = {item, beg, auto, man, used, end, begSet, endSet} */
+  function addDays(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  function push(id, k, n, before) {
+    var d = localToday(), day = log.days[d] || (log.days[d] = {}), l = day[id] || (day[id] = []);
+    l.push({ k: k, n: n, b: before, t: Date.now() }); return save();
+  }
+  /* called by shift close after it lowers cups/lids */
+  function logAuto(id, before, after) { var n = before - after; if (n > 0) push(id, 'auto', n, before); }
+  /* called by the Inventory page whenever a count is changed there */
+  function onQty(id, oldQ, newQ) {
+    if (newQ == null || oldQ === newQ) return;
+    if (oldQ == null) { push(id, 'init', newQ, newQ); return; }
+    if (newQ > oldQ) push(id, 'add', newQ - oldQ, oldQ); else push(id, 'used', oldQ - newQ, oldQ);
+  }
+  /* the form on the calendar: kind is 'add' or 'used'; changes the stock count too. Returns '' on success or a message. */
+  function adjust(kind, id, n) {
+    var it = item(id); if (!it) return 'Item not found';
+    if (it.qty == null) return 'Count this item first on the Inventory page';
+    var before = it.qty, after = kind === 'add' ? before + n : Math.max(0, before - n);
+    if (after === before) return 'Nothing to change';
+    it.qty = after; it.updated = D().todayPH();
+    if (!D().saveInventory()) { it.qty = before; return 'Could not save. Storage may be full.'; }
+    onQty(id, before, after); return '';
+  }
+  /* rows per date: {item, beg, added, auto, man, used, end} */
   function range(from, to) {
     var out = {}, run = {}, today = localToday(), its = items();
     for (var d = from; d <= to; d = addDays(d, 1)) {
-      var au = autoUsed(d), rows = [];
+      var day = log.days[d] || {}, rows = [];
       its.forEach(function (it) {
-        var r = rec(d, it.id), man = 0; if (r) r.man.forEach(function (m) { man += m.n; });
-        var a = au[String(it.name).toLowerCase()] || 0, used = a + man;
-        var beg = r && r.beg != null ? r.beg : (run[it.id] != null ? run[it.id] : null);
-        if (beg == null && d === today && it.qty != null) beg = it.qty + used;
-        var end = r && r.end != null ? r.end : (beg == null ? null : beg - used);
+        var l = day[it.id] || [], added = 0, auto = 0, man = 0;
+        l.forEach(function (e) { if (e.k === 'add') added += e.n; else if (e.k === 'auto') auto += e.n; else if (e.k === 'used') man += e.n; });
+        var beg = l.length ? l[0].b : (run[it.id] != null ? run[it.id] : (d === today && it.qty != null ? it.qty : null));
+        var end = beg == null ? null : beg + added - auto - man;
+        if (d === today && it.qty != null) end = it.qty;
         run[it.id] = end;
-        rows.push({ item: it, beg: beg, auto: a, man: man, used: used, end: end, begSet: !!(r && r.beg != null), endSet: !!(r && r.end != null) });
+        rows.push({ item: it, beg: beg, added: added, auto: auto, man: man, used: auto + man, end: end });
       });
       out[d] = rows;
     }
     return out;
   }
-  function addUsed(date, id, n) {
-    var r = rec(date, id, true); r.man.push({ n: n, t: Date.now() });
-    if (date === localToday()) { var it = items().filter(function (i) { return i.id === id; })[0]; if (it && it.qty != null) { it.qty = Math.max(0, it.qty - n); it.updated = D.todayPH(); D.saveInventory(); } }
-    return save();
-  }
-  function setOverride(date, id, which, val) { var r = rec(date, id, true); if (val === '' || val == null) delete r[which]; else r[which] = Number(val); return save(); }
 
   /* ---------- minimal .xlsx writer (stored zip, no compression) ---------- */
   var T = (function () { var t = [], c, n, k; for (n = 0; n < 256; n++) { c = n; for (k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -94,24 +109,24 @@
     return zip(f);
   }
   function sheetFor(name, title, dayRows, cols) {
-    var rows = [[{ v: title, s: 3 }], [], [{ v: 'Item', s: 2 }, { v: 'Beg', s: 2 }, { v: 'Used', s: 2 }, { v: 'End', s: 2 }, { v: 'Units', s: 2 }]], last = null;
+    var rows = [[{ v: title, s: 3 }], [], [{ v: 'Item', s: 2 }, { v: 'Beg', s: 2 }, { v: 'Added', s: 2 }, { v: 'Used', s: 2 }, { v: 'End', s: 2 }, { v: 'Units', s: 2 }]], last = null;
     dayRows.forEach(function (r) {
       var g = r.item.group || 'Other';
       if (g !== last) { rows.push([{ v: g, s: 1 }]); last = g; }
-      rows.push([r.item.name, r.beg == null ? '' : r.beg, r.used, r.end == null ? '' : r.end, r.item.unit || '']);
+      rows.push([r.item.name, r.beg == null ? '' : r.beg, r.added, r.used, r.end == null ? '' : r.end, r.item.unit || '']);
     });
-    return { name: name, widths: [34, 10, 10, 10, 12], rows: rows };
+    return { name: name, widths: [34, 10, 10, 10, 10, 12], rows: rows };
   }
   function exportXlsx(from, to, day) {
     var rg = range(from, to), dates = Object.keys(rg).sort(), first = rg[dates[0]], lastR = rg[dates[dates.length - 1]];
     var month = first.map(function (r, i) {
-      var used = 0, beg = null; dates.forEach(function (d) { used += rg[d][i].used; if (beg == null) beg = rg[d][i].beg; });
-      return { item: r.item, beg: beg, used: used, end: lastR[i].end };
+      var used = 0, added = 0, beg = null; dates.forEach(function (d) { used += rg[d][i].used; added += rg[d][i].added; if (beg == null) beg = rg[d][i].beg; });
+      return { item: r.item, beg: beg, added: added, used: used, end: lastR[i].end };
     });
     var dr = rg[day] || range(day, day)[day];
     var blob = xlsx([sheetFor('Month', 'Inventory ' + from + ' to ' + to, month), sheetFor(day, 'Inventory ' + day, dr)]);
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory-' + from.slice(0, 7) + '.xlsx';
     document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
-  window.MBInvLog = { range: range, addUsed: addUsed, setOverride: setOverride, exportXlsx: exportXlsx, localToday: localToday, addDays: addDays };
+  window.MBInvLog = { range: range, adjust: adjust, onQty: onQty, logAuto: logAuto, exportXlsx: exportXlsx, localToday: localToday, addDays: addDays };
 })();
