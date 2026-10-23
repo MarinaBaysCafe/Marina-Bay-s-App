@@ -104,6 +104,19 @@
   function cashOf(s) { return s.ca != null ? s.ca : (s.pay === 'cash' ? s.net : 0); }
   function addSale(s) { sales.sales.push(s); return saveSales(); }
   function refund(id) { var s = sales.sales.filter(function (x) { return x.id === id; })[0]; if (!s || s.ref) return false; s.ref = 1; s.refT = Date.now(); return saveSales(); }
+  /* Delete an order. Only orders of the shift that is still open (a closed shift's report is already fixed). */
+  function deleteSale(id) {
+    var s = sales.sales.filter(function (x) { return x.id === id; })[0], cur = shifts.cur;
+    if (!s || !cur || s.shift !== cur.no) return false;
+    sales.sales = sales.sales.filter(function (x) { return x.id !== id; }); return saveSales();
+  }
+  /* Delete a closed shift and all of its orders. Expenses and the money counter are left alone. */
+  function deleteShift(no) {
+    var h = shifts.hist.filter(function (x) { return x.no === no; })[0]; if (!h) return false;
+    sales.sales = sales.sales.filter(function (x) { return x.shift !== no; });
+    shifts.hist = shifts.hist.filter(function (x) { return x.no !== no; });
+    return saveSales() && saveShifts();
+  }
   function salesOf(no) { return sales.sales.filter(function (s) { return s.shift === no; }); }
 
   /* ---------- shifts ---------- */
@@ -350,7 +363,7 @@
 
   window.MBShift = {
     num: num, sg: sg, fmtDT: fmtDT, fmtTime: fmtTime, phDate: phDate, r2: r2, cupName: cupName, lidName: lidName,
-    sales: function () { return sales.sales; }, salesOf: salesOf, makeSale: makeSale, cashOf: cashOf, addSale: addSale, refund: refund,
+    sales: function () { return sales.sales; }, salesOf: salesOf, makeSale: makeSale, cashOf: cashOf, addSale: addSale, refund: refund, deleteSale: deleteSale, deleteShift: deleteShift,
     shifts: function () { return shifts; }, saveShifts: saveShifts, index: buildIndex, day: day, month: month, deductInventory: deductInventory, current: current, start: start, close: close, report: report, lastActual: lastActual,
     posName: posName, setPosName: setPosName, lastUser: lastUser, countedCash: countedCash, expensesBetween: expensesBetween,
     reportReceipt: reportReceipt, saleReceipt: saleReceipt, orderReceipt: orderReceipt, typeText: typeText, cafe: cafe

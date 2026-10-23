@@ -49,7 +49,7 @@
     <section class="view" id="v-detail">
       <div class="editbar"><button class="icon-btn" id="back" aria-label="Back">&#8249;</button><b id="detailTitle">Shift report</b></div>
       <div id="detailBody"></div>
-      <div class="actions"><button class="primary" id="detailPrint">Print report</button></div>
+      <div class="actions"><button class="primary" id="detailPrint">Print report</button><button class="text-btn danger" id="detailDel">Delete shift</button></div>
     </section>
     <section class="view" id="v-more">
       <div class="sect">This device</div>
@@ -191,6 +191,11 @@
       if (id === 'enPrint') await printReport(r);
     } else if (id === 'saleRefund') {
       if (confirm('Refund this order? It will be counted as a refund in the shift report.')) { S.refund(saleId); closeSheet(); paintSales(); D.toast('Order refunded'); }
+    } else if (id === 'saleDel') {
+      var ds = S.sales().filter(function (x) { return x.id === saleId; })[0];
+      if (ds && confirm('Delete order ' + ds.n + ' (' + N(ds.net) + ') for good?\nIt is removed from sales and from this shift. If money was given back, use Refund instead.')) {
+        if (S.deleteSale(saleId)) { closeSheet(); paintSales(); D.toast('Order deleted'); } else D.toast('Could not delete this order');
+      }
     } else if (id === 'salePrint') {
       var s = S.sales().filter(function (x) { return x.id === saleId; })[0];
       var m = await MBPrinter.print('pos', function (p) { S.saleReceipt(p, s); }); if (m) D.toast(m);
@@ -226,7 +231,7 @@
     if (s.disc) body += row('Discount', '-' + N(s.disc));
     body += row('Total', N(s.net), 1) + ((s.pays || []).map(function (x) { return row(x.name, N(x.amt)); }).join('')) + (S.cashOf(s) > 0 || s.pay === 'cash' ? row('Cash received', N(s.tend)) + row('Change', N(s.change)) : '');
     $('sheet').innerHTML = '<div class="sh-head"><div class="t"><b>Order ' + s.n + '</b><span>' + esc(S.fmtDT(s.t)) + (s.type ? ' · ' + S.typeText(s.type) : '') + (s.ref ? ' · Refunded' : '') + '</span></div><button class="icon-btn" data-close aria-label="Close">&times;</button></div>' +
-      '<div class="sh-body">' + body + '</div><div class="sh-foot">' + (s.ref ? '' : '<button class="text-btn danger" id="saleRefund">Refund</button>') + '<button class="primary" id="salePrint">Print receipt</button></div>';
+      '<div class="sh-body">' + body + '</div><div class="sh-foot">' + (s.ref ? '' : '<button class="text-btn danger" id="saleRefund">Refund</button>') + (S.current() && s.shift === S.current().no ? '<button class="text-btn danger" id="saleDel">Delete</button>' : '') + '<button class="primary" id="salePrint">Print receipt</button></div>';
     openSheet();
   });
 
@@ -253,6 +258,22 @@
     show('detail');
   }
   $('detailPrint').onclick = function () { if (shown) printReport(shown); };
+  $('detailDel').onclick = function () {
+    if (!shown || !shown.closedAt) return;
+    var no = shown.no, n = S.salesOf(no).length;
+    if (!confirm('Delete Shift ' + no + ' and its ' + n + (n === 1 ? ' order' : ' orders') + ' (' + N(shown.net) + ' net) for good?\nExpenses and the money counter are not touched. This cannot be undone.')) return;
+    if (!confirm('Last check: really delete Shift ' + no + '? Download a backup first if you are not sure.')) return;
+    var back = shown.inventory && shown.inventory.length && window.MBInvLog &&
+      confirm('Shift ' + no + ' took cups and lids off the stock when it closed. Put them back in stock?');
+    if (back) {
+      var its = D.getInventory().items || [];
+      shown.inventory.forEach(function (u) {
+        var it = its.filter(function (i) { return String(i.name).toLowerCase() === String(u.name).toLowerCase(); })[0];
+        if (it && it.qty != null) MBInvLog.adjust('add', it.id, u.before - u.after);
+      });
+    }
+    if (S.deleteShift(no)) { shown = null; D.toast('Shift ' + no + ' deleted'); show('hist'); paintHist(); } else D.toast('Could not delete this shift');
+  };
 
   /* ---------- more ---------- */
   $('posName').onchange = function () { S.setPosName($('posName').value); D.toast('Saved'); };

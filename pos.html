@@ -504,7 +504,7 @@
     if (mode === 'pay') {
       var dt = t.closest('button[data-dt]'); if (dt) { pay.dt = dt.getAttribute('data-dt'); renderPay(); return; }
       var rs = t.closest('button[data-rest]');
-      if (rs) { var o = 0, nn = payNums(); CFG().methods.forEach(function (m) { if (m.id !== 'cash' && m.id !== rs.getAttribute('data-rest')) o += parseFloat(pay.amt[m.id]) || 0; }); pay.amt[rs.getAttribute('data-rest')] = String(Math.max(0, S.r2(nn.net - o))); renderPay(); return; }
+      if (rs) { var o = 0, nn = payNums(); CFG().methods.forEach(function (m) { if (m.id !== rs.getAttribute('data-rest')) o += parseFloat(pay.amt[m.id]) || 0; }); pay.amt[rs.getAttribute('data-rest')] = String(Math.max(0, S.r2(nn.net - o))); renderPay(); return; }
       var qc = t.closest('button[data-qc]'); if (qc) { var v = qc.getAttribute('data-qc'); pay.amt.cash = v === 'exact' ? '' : v; renderPay(); return; }
       if (t.id === 'payGo') completeSale();
     } else if (mode === 'start') { if (t.id === 'startGo') doStart(); }
@@ -564,6 +564,7 @@
     h += '<div class="totalrow"><span>Total</span><span class="num">' + money(s.net) + '</span></div>' +
       '<div class="help2">' + payText(s) + (s.emp ? ' · ' + esc(s.emp) : '') + (s.fix ? ' · Correction of an earlier order' : '') + '</div></div>';
     h += '<div class="sh-foot">' + (s.ref ? '' : '<button class="text-btn danger" id="ordRefund">Refund</button><button class="secondary" id="ordFix">Correct</button>') +
+      (S.current() && s.shift === S.current().no ? '<button class="text-btn danger" id="ordDel">Delete</button>' : '') +
       '<button class="primary" id="ordPrint">Print receipt</button></div>';
     $('sheet').innerHTML = h;
   }
@@ -590,6 +591,10 @@
     var s = hId ? saleById(hId) : null; if (!s) return;
     if (t.id === 'ordRefund') {
       if (confirm('Refund ' + saleLabel(s) + ' for ' + money(s.net) + '? This cannot be undone.')) { S.refund(s.id); paintOrdBtn(); renderOrd(s.id); D.toast('Order refunded'); }
+    } else if (t.id === 'ordDel') {
+      if (confirm('Delete ' + saleLabel(s) + ' (' + money(s.net) + ') for good?\nIt is removed from sales and from this shift, as if it never happened. If money was given back, use Refund instead.')) {
+        if (S.deleteSale(s.id)) { hId = null; paintOrdBtn(); renderHist(); D.toast('Order deleted'); } else D.toast('Could not delete this order');
+      }
     } else if (t.id === 'ordFix') { correctOrder(s); }
     else if (t.id === 'ordPrint') {
       var old = t.textContent; t.disabled = true; t.textContent = 'Printing...';
