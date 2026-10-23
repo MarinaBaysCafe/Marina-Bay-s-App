@@ -329,7 +329,7 @@
         var data = JSON.parse(rd.result);
         if (!data || !Array.isArray(data.items)) throw 0;
         if (confirm('Replace the current list with this backup (' + data.items.length + ' items)?')) {
-          D.setInventory(data); V = D.getInventory(); filter = 'all'; setView('data'); D.toast('List restored');
+          D.setInventory(data); if (window.MBInvLog) MBInvLog.clear(); V = D.getInventory(); filter = 'all'; setView('data'); D.toast('List restored');
         }
       } catch (err) { alert('That file is not an inventory backup.'); }
       $('file').value = '';
@@ -344,7 +344,7 @@
   };
   $('reset').onclick = function () {
     if (confirm('Remove all changes on this device and go back to the starting list with every amount at zero?')) {
-      V = D.resetInventory(); filter = 'all'; setView('data'); D.toast('List reset');
+      V = D.resetInventory(); if (window.MBInvLog) MBInvLog.clear(); filter = 'all'; setView('data'); D.toast('List reset');
     }
   };
 

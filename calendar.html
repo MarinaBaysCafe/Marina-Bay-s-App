@@ -57,6 +57,10 @@
   table.inv td { padding: 4px; border-top: 1px solid var(--line); text-align: right; }
   table.inv td input { width: 64px; text-align: right; border: 1px solid var(--line); border-radius: 4px; padding: 4px; font: inherit; }
   table.inv tr.g td { background: var(--soft); font-weight: 650; text-align: left; }
+  .seg2 { display: flex; border: 1.5px solid #c9c1b5; border-radius: 6px; overflow: hidden; }
+  .seg2 button { border: none; background: #fff; font: inherit; font-size: 15px; padding: 8px 16px; color: var(--ink); cursor: pointer; }
+  .seg2 button + button { border-left: 1.5px solid #c9c1b5; }
+  .seg2 button.on { background: var(--teal); color: #fff; font-weight: 650; }
 </style>
 <link rel="stylesheet" href="wide.css">
 <link rel="stylesheet" href="brand.css">
@@ -150,7 +154,7 @@
       h += x.expenses.length ? x.expenses.map(function (e) { return row(e.cat, N(e.amt), 0, (e.src === 'online' ? 'Online' : 'Cash') + (e.note ? ' · ' + e.note : '')); }).join('') +
         row('Paid in cash', N(x.expCash)) + row('Paid online', N(x.expOnline)) : '<div class="none">No expenses.</div>';
       var ck = Object.keys(x.cups).sort(), lk = Object.keys(x.lids).sort();
-      h += '<div class="sect">Cups and lids used</div>';
+      h += '<div class="sect">Cups and lids from sales</div>';
       h += ck.length ? ck.map(function (k) { return row(k, String(x.cups[k])); }).join('') + lk.map(function (k) { return row(k, String(x.lids[k])); }).join('') : '<div class="none">No drinks sold.</div>';
     }
     h += invHtml();

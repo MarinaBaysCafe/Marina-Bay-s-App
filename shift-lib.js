@@ -90,7 +90,7 @@
     var pays = [], nonCash = 0, cashTend = 0;
     if (pay.splits) {
       pay.splits.forEach(function (x) { var a = r2(x.amt); if (a <= 0) return; if (x.cash) cashTend += a; else { pays.push({ id: x.id, name: x.name, amt: a }); nonCash += a; } });
-      nonCash = Math.min(nonCash, net);
+      if (nonCash > net) { var left = net; pays.forEach(function (x) { x.amt = r2(Math.min(x.amt, left)); left = r2(left - x.amt); }); pays = pays.filter(function (x) { return x.amt > 0; }); nonCash = net; }
     } else if (pay.method === 'ewallet') { pays.push({ id: 'ewallet', name: 'E-wallet', amt: net }); nonCash = net; }
     else cashTend = pay.tend || net;
     var ca = r2(net - nonCash);

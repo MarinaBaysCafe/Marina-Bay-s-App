@@ -18,6 +18,7 @@
     l.push({ k: k, n: n, b: before, t: Date.now() }); return save();
   }
   /* called by shift close after it lowers cups/lids */
+  function clear() { log = { days: {} }; try { localStorage.removeItem(KEY); } catch (e) {} }
   function logAuto(id, before, after) { var n = before - after; if (n > 0) push(id, 'auto', n, before); }
   /* called by the Inventory page whenever a count is changed there */
   function onQty(id, oldQ, newQ) {
@@ -128,5 +129,5 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory-' + from.slice(0, 7) + '.xlsx';
     document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
-  window.MBInvLog = { range: range, adjust: adjust, onQty: onQty, logAuto: logAuto, exportXlsx: exportXlsx, localToday: localToday, addDays: addDays };
+  window.MBInvLog = { clear: clear, range: range, adjust: adjust, onQty: onQty, logAuto: logAuto, exportXlsx: exportXlsx, localToday: localToday, addDays: addDays };
 })();
