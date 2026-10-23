@@ -118,6 +118,30 @@
         return { nextNo: Math.max(next, top + 1, cur ? cur.no + 1 : 1), cur: cur, hist: list };
       }
     },
+    config: {
+      key: 'marinabays_config_v1', coll: 'sync_config',
+      to: function (o) { return { cfg: S(o) }; },
+      from: function (m) { try { return m.cfg ? JSON.parse(m.cfg) : {}; } catch (e) { return {}; } }
+    },
+    invlog: {
+      key: 'marinabays_invlog_v2', coll: 'sync_invlog',
+      to: function (o) {
+        var m = {};
+        Object.keys(o.days || {}).forEach(function (d) {
+          Object.keys(o.days[d] || {}).forEach(function (id) { if ((o.days[d][id] || []).length) m['e:' + d + '|' + id] = S(o.days[d][id]); });
+        });
+        return m;
+      },
+      from: function (m) {
+        var days = {};
+        Object.keys(m).forEach(function (k) {
+          if (k.indexOf('e:') !== 0) return;
+          var p = k.slice(2).split('|'), d = p[0], id = p.slice(1).join('|');
+          (days[d] = days[d] || {})[id] = JSON.parse(m[k]);
+        });
+        return { days: days };
+      }
+    },
     expenses: {
       key: 'marinabays_expenses_v1', coll: 'sync_expenses',
       to: function (o) {

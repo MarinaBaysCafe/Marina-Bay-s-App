@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <script src="security.js"></script>
 <script src="firebase-config.js"></script>
-<script src="cloud.js" data-uses="sales,shifts,expenses,counter"></script>
+<script src="cloud.js" data-uses="sales,shifts,expenses,counter,inventory,invlog"></script>
 <meta name="robots" content="noindex, nofollow">
 <meta name="author" content="Marina Bay's Cafe">
 <meta name="copyright" content="Copyright 2026 Marina Bay's Cafe. All rights reserved.">
@@ -166,7 +166,7 @@
       '<div class="help">Count the cash in the drawer. ' + (counted > 0 ? 'Today\'s count in the Money counter is ' + esc(N(counted)) + '.' : 'You can also count it in the Money counter first.') + '</div>' +
       '<div class="frow"><label for="enActual">Actual cash amount</label><input class="field num" id="enActual" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="' + (counted > 0 ? counted : '') + '"></div>' +
       '<div class="rrow strong"><span id="enDiffLabel">Difference</span><span class="num" id="enDiff">-</span></div>' +
-      (r.drinks ? '<label class="check"><input type="checkbox" id="enInv" checked> Subtract the cups and lids used from Inventory</label>' : '') +
+      (r.drinks ? '<div class="help">The cups and lids used are taken off Inventory when the shift ends.</div>' : '') +
       '<div class="frow"><label for="enBy">Closed by</label><input class="field" id="enBy" type="text" maxlength="30" placeholder="Name" value="' + esc(S.lastUser() || cur.openedBy) + '" autocomplete="off"></div>' +
       '</div><div class="sh-foot"><button class="secondary" id="enOnly">End shift</button><button class="primary" id="enPrint">End and print</button></div>';
     openSheet(); updDiff(r);
@@ -183,7 +183,7 @@
     if (id === 'enOnly' || id === 'enPrint') {
       var v = $('enActual').value.trim();
       if (v === '' || isNaN(parseFloat(v)) || parseFloat(v) < 0) { D.toast('Enter the actual cash amount'); $('enActual').focus(); return; }
-      var takeOut = !!($('enInv') && $('enInv').checked);
+      var takeOut = true;
       var r = S.close($('enBy').value, parseFloat(v));
       if (takeOut && r.drinks) { r.inventory = S.deductInventory(r); S.saveShifts(); }
       closeSheet(); D.toast('Shift ' + r.no + ' ended');

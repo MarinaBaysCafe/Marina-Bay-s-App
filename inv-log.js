@@ -11,7 +11,7 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(log)); return true; } catch (e) { return false; } }
   function items() { return D().getInventory().items || []; }
   function item(id) { return items().filter(function (i) { return i.id === id; })[0]; }
-  function localToday() { return new Date().toLocaleDateString('en-CA'); }
+  function localToday() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
   function addDays(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
   function push(id, k, n, before) {
     var d = localToday(), day = log.days[d] || (log.days[d] = {}), l = day[id] || (day[id] = []);
