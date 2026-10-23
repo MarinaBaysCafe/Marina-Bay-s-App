@@ -45,6 +45,13 @@
   .rec-kind button { border: 0; background: #fff; font: inherit; padding: 0 16px; min-height: 44px; cursor: pointer; }
   .rec-kind button.on { background: var(--teal, #0d3a4e); color: #fff; font-weight: 650; }
   .rec-note { padding: 0 14px 12px; font-size: 12px; color: var(--muted); } .rec-note a { color: var(--teal); font-weight: 650; }
+  .dl-bar { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 16px; } .dl-bar .field { flex: 1 1 150px; }
+  .dl-wrap { overflow-x: auto; padding: 0 16px; }
+  table.inv { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.inv th { text-align: right; font-size: 13px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  table.inv td { padding: 8px; border-top: 1px solid var(--line); text-align: right; }
+  table.inv th:first-child, table.inv td:first-child, table.inv th:last-child, table.inv td:last-child { text-align: left; }
+  table.inv tr.g td { background: var(--soft); font-weight: 650; text-align: left; }
 </style>
 </head>
 <body class="pg-inventory">
@@ -76,6 +83,11 @@
     <section class="view on" id="v-stock"><div id="list"></div></section>
 
     <!-- ITEM EDIT -->
+    <section class="view" id="v-daily">
+      <div class="dl-bar"><input class="field" id="dlDate" type="date"><button class="secondary" id="dlToday" type="button">Today</button><button class="secondary" id="dlAll" type="button">Show all items</button><button class="primary" id="dlX" type="button">Save as .xlsx</button></div>
+      <div class="dl-wrap"><table class="inv" id="dlTable"></table></div>
+      <div class="rec-note" style="padding:8px 16px 16px">Beg is the previous day's End. Added and Used come from the + and &minus; buttons, the record form, and cups and lids taken off when a shift is closed. <a href="calendar.html" id="dlCal">Open the calendar</a></div>
+    </section>
     <section class="view" id="v-item">
       <div class="editbar"><button class="icon-btn" id="back" aria-label="Back">&#8249;</button><b id="itemTitle">Item</b></div>
       <div class="frow"><label for="iName">Name</label><input class="field" id="iName" type="text" maxlength="60" autocomplete="off"></div>
@@ -101,6 +113,7 @@
   <div class="addbar" id="addbar"><button class="add-btn" id="addItem">Add item</button></div>
   <nav class="tabs">
     <button class="tab on" data-v="stock">Stock</button>
+    <button class="tab" data-v="daily">Daily</button>
     <button class="tab" data-v="data">Data</button>
   </nav>
 </div>
@@ -268,13 +281,39 @@
   };
   $('calLink').href = 'calendar.html?date=' + MBInvLog.localToday();
 
+  /* ---------- daily table (same layout as the calendar) ---------- */
+  var dlAll = false;
+  function paintDaily() {
+    var d = $('dlDate').value || MBInvLog.localToday(), rows = MBInvLog.range(d, d)[d];
+    var shown = rows.filter(function (r) { return dlAll || r.used > 0 || r.added > 0; });
+    var h = '<thead><tr><th>Item</th><th>Beg</th><th>Added</th><th>Used</th><th>End</th><th>Units</th></tr></thead><tbody>', last = null;
+    shown.forEach(function (r) {
+      var g = r.item.group || 'Other'; if (g !== last) { h += '<tr class="g"><td colspan="6">' + esc(g) + '</td></tr>'; last = g; }
+      h += '<tr><td>' + esc(r.item.name) + '</td><td class="num">' + (r.beg == null ? '' : r.beg) + '</td><td class="num">' + (r.added || '') + '</td>' +
+        '<td class="num" title="Shift ' + r.auto + ' + manual ' + r.man + '">' + (r.used || '') + '</td><td class="num">' + (r.end == null ? '' : r.end) + '</td><td>' + esc(r.item.unit || '') + '</td></tr>';
+    });
+    if (!shown.length) h += '<tr><td colspan="6" style="text-align:left;color:var(--muted)">No stock changes on this day. Use "Show all items" to see every item.</td></tr>';
+    $('dlTable').innerHTML = h + '</tbody>';
+    $('dlAll').textContent = dlAll ? 'Hide unchanged' : 'Show all items';
+    $('dlCal').href = 'calendar.html?date=' + d;
+  }
+  $('dlDate').value = MBInvLog.localToday();
+  $('dlDate').onchange = paintDaily;
+  $('dlToday').onclick = function () { $('dlDate').value = MBInvLog.localToday(); paintDaily(); };
+  $('dlAll').onclick = function () { dlAll = !dlAll; paintDaily(); };
+  $('dlX').onclick = function () {
+    var d = $('dlDate').value || MBInvLog.localToday(), y = d.slice(0, 4), m = d.slice(5, 7);
+    MBInvLog.exportXlsx(y + '-' + m + '-01', y + '-' + m + '-' + (new Date(Date.UTC(+y, +m, 0)).getUTCDate()), d);
+  };
+
   function setView(v) {
-    ['stock', 'item', 'data'].forEach(function (n) { $('v-' + n).classList.toggle('on', n === v); });
-    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-v') === (v === 'data' ? 'data' : 'stock')); });
+    ['stock', 'item', 'daily', 'data'].forEach(function (n) { $('v-' + n).classList.toggle('on', n === v); });
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-v') === (v === 'data' || v === 'daily' ? v : 'stock')); });
     $('stockTop').style.display = v === 'stock' ? '' : 'none';
     $('addbar').style.display = v === 'stock' ? '' : 'none';
     $('main').scrollTop = 0;
     if (v === 'stock') paintAll();
+    if (v === 'daily') paintDaily();
     if (v === 'data') $('stat').textContent = V.items.length + ' items, ' + outCount() + ' out of stock';
   }
   document.querySelectorAll('.tab').forEach(function (t) { t.onclick = function () { setView(t.getAttribute('data-v')); }; });
