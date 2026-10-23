@@ -19,6 +19,7 @@ var FILES = [
   './data.html',
   './shift-lib.js',
   './pos-config.js',
+  './inv-log.js',
   './settings.html',
   './app-data.js',
   './menu-default.js',

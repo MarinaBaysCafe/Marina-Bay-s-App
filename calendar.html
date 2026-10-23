@@ -49,6 +49,14 @@
   .links a { border: 1.5px solid var(--teal); color: var(--teal); border-radius: 6px; padding: 9px 14px; font-weight: 650; font-size: 14px; text-decoration: none; }
   .neg { color: var(--bad); } .pos { color: #2f6b4f; }
   .daycard { border-top: 6px solid var(--soft); margin-top: 6px; }
+  .inv-add { display: flex; gap: 6px; padding: 4px 16px 10px; flex-wrap: wrap; }
+  .inv-add .field { flex: 1 1 110px; min-width: 0; } .inv-add #invAmt { flex: 0 1 80px; }
+  .inv-wrap { overflow-x: auto; padding: 0 16px; }
+  table.inv { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.inv th { text-align: right; font-size: 12px; color: var(--muted); padding: 4px; } table.inv th:first-child, table.inv td:first-child, table.inv th:last-child, table.inv td:last-child { text-align: left; }
+  table.inv td { padding: 4px; border-top: 1px solid var(--line); text-align: right; }
+  table.inv td input { width: 64px; text-align: right; border: 1px solid var(--line); border-radius: 4px; padding: 4px; font: inherit; }
+  table.inv tr.g td { background: var(--soft); font-weight: 650; text-align: left; }
 </style>
 <link rel="stylesheet" href="wide.css">
 <link rel="stylesheet" href="brand.css">
@@ -86,6 +94,7 @@
 <script src="inventory-default.js"></script>
 <script src="app-data.js"></script>
 <script src="shift-lib.js"></script>
+<script src="inv-log.js"></script>
 <script>
 (function () {
   var D = window.MBData, S = window.MBShift, esc = D.esc, $ = function (id) { return document.getElementById(id); };
@@ -94,7 +103,7 @@
   function short(n) { n = Math.round(n); return n >= 10000 ? (Math.round(n / 100) / 10) + 'k' : n.toLocaleString('en-PH'); }
   function sg(n) { return S.sg(n); }
 
-  var today = S.phDate(Date.now()), selected = today;
+  var today = MBInvLog.localToday(), selected = today;
   var qd = /[?&]date=(\d{4}-\d{2}-\d{2})/.exec(location.search); if (qd) selected = qd[1];
   var viewY = +selected.slice(0, 4), viewM = +selected.slice(5, 7) - 1;
 
@@ -144,9 +153,57 @@
       h += '<div class="sect">Cups and lids used</div>';
       h += ck.length ? ck.map(function (k) { return row(k, String(x.cups[k])); }).join('') + lk.map(function (k) { return row(k, String(x.lids[k])); }).join('') : '<div class="none">No drinks sold.</div>';
     }
+    h += invHtml();
     h += '<div class="links"><a href="money-counter.html?date=' + selected + '">Money counter</a><a href="expenses.html?date=' + selected + '">Expenses</a><a href="shift.html">Shift</a><a href="pos.html">POS</a></div>';
     $('dayPanel').innerHTML = h;
   }
+
+
+  var invSearch = '', invAll = false;
+  function invHtml() {
+    var rows = MBInvLog.range(selected, selected)[selected], h = '<div class="sect">Inventory</div>';
+    var shown = rows.filter(function (r) { return invAll || r.used > 0 || r.begSet || r.endSet; });
+    var q = invSearch.toLowerCase(), opts = rows.filter(function (r) { return !q || r.item.name.toLowerCase().indexOf(q) > -1; });
+    h += '<div class="inv-add"><input class="field" id="invQ" type="search" placeholder="Search item" value="' + esc(invSearch) + '">' +
+      '<select class="field" id="invSel">' + opts.map(function (r) { return '<option value="' + esc(r.item.id) + '">' + esc(r.item.name) + (r.item.unit ? ' (' + esc(r.item.unit) + ')' : '') + '</option>'; }).join('') + '</select>' +
+      '<input class="field num" id="invAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="Used">' +
+      '<button class="primary" id="invDone">Done</button></div>';
+    h += '<div class="inv-wrap"><table class="inv"><thead><tr><th>Item</th><th>Beg</th><th>Used</th><th>End</th><th>Units</th></tr></thead><tbody>';
+    var last = null;
+    shown.forEach(function (r) {
+      var g = r.item.group || 'Other'; if (g !== last) { h += '<tr class="g"><td colspan="5">' + esc(g) + '</td></tr>'; last = g; }
+      h += '<tr><td>' + esc(r.item.name) + '</td>' +
+        '<td><input class="num" type="number" step="any" data-ov="beg" data-id="' + esc(r.item.id) + '" value="' + (r.beg == null ? '' : r.beg) + '"></td>' +
+        '<td class="num" title="Auto ' + r.auto + ' + manual ' + r.man + '">' + r.used + '</td>' +
+        '<td><input class="num" type="number" step="any" data-ov="end" data-id="' + esc(r.item.id) + '" value="' + (r.end == null ? '' : r.end) + '"></td>' +
+        '<td>' + esc(r.item.unit || '') + '</td></tr>';
+    });
+    if (!shown.length) h += '<tr><td colspan="5" class="none">No inventory activity. Add usage above or show all items.</td></tr>';
+    h += '</tbody></table></div><div class="links" style="padding-bottom:4px"><a href="#" id="invAll">' + (invAll ? 'Hide unused items' : 'Show all items') + '</a><a href="#" id="invX">Save as .xlsx</a></div>';
+    return h;
+  }
+  $('dayPanel').addEventListener('input', function (e) {
+    if (e.target.id !== 'invQ') return;
+    invSearch = e.target.value; var rows = MBInvLog.range(selected, selected)[selected], q = invSearch.toLowerCase();
+    $('invSel').innerHTML = rows.filter(function (r) { return !q || r.item.name.toLowerCase().indexOf(q) > -1; }).map(function (r) { return '<option value="' + esc(r.item.id) + '">' + esc(r.item.name) + (r.item.unit ? ' (' + esc(r.item.unit) + ')' : '') + '</option>'; }).join('');
+  });
+  $('dayPanel').addEventListener('change', function (e) {
+    var w = e.target.getAttribute('data-ov'); if (!w) return;
+    MBInvLog.setOverride(selected, e.target.getAttribute('data-id'), w, e.target.value); paintDay();
+  });
+  $('dayPanel').addEventListener('click', function (e) {
+    var t = e.target;
+    if (t.id === 'invDone') {
+      var n = parseFloat($('invAmt').value), id = $('invSel').value;
+      if (!id || !(n > 0)) { D.toast('Pick an item and enter the amount used'); return; }
+      if (!MBInvLog.addUsed(selected, id, n)) D.toast('Could not save. Storage may be full.'); else { invSearch = ''; paintDay(); D.toast('Saved'); }
+    } else if (t.id === 'invAll') { e.preventDefault(); invAll = !invAll; paintDay(); }
+    else if (t.id === 'invX') {
+      e.preventDefault();
+      var from = viewY + '-' + pad(viewM + 1) + '-01', to = viewY + '-' + pad(viewM + 1) + '-' + pad(new Date(Date.UTC(viewY, viewM + 1, 0)).getUTCDate());
+      MBInvLog.exportXlsx(from, to, selected);
+    }
+  });
 
   $('days').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-k]'); if (!b) return;
@@ -157,6 +214,10 @@
   $('nextM').onclick = function () { viewM++; if (viewM > 11) { viewM = 0; viewY++; } paintMonth(); };
   $('todayBtn').onclick = function () { selected = today; viewY = +today.slice(0, 4); viewM = +today.slice(5, 7) - 1; paintMonth(); paintDay(); };
 
+  setInterval(function () {
+    var n = MBInvLog.localToday();
+    if (n !== today) { if (selected === today) { selected = n; viewY = +n.slice(0, 4); viewM = +n.slice(5, 7) - 1; } today = n; paintMonth(); paintDay(); }
+  }, 30000);
   paintMonth(); paintDay();
   window.addEventListener('pageshow', function () { paintMonth(); paintDay(); });
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {

@@ -61,7 +61,7 @@
       <div class="frow"><label for="iName">Name</label><input class="field" id="iName" type="text" maxlength="60" autocomplete="off"></div>
       <div class="frow"><label for="iGroup">Group</label><input class="field" id="iGroup" type="text" list="groups" maxlength="30" placeholder="Cups, Syrups..." autocomplete="off"><datalist id="groups"></datalist></div>
       <div class="frow"><label for="iQty">Amount</label><input class="field num" id="iQty" type="number" inputmode="numeric" min="0" step="1" placeholder="Not counted"></div>
-      <div class="frow"><label for="iUnit">Unit</label><input class="field" id="iUnit" type="text" maxlength="15" placeholder="Optional, like pcs or bottles" autocomplete="off"></div>
+      <div class="frow"><label for="iUnit">Unit</label><datalist id="unitList"></datalist><input class="field" id="iUnit" list="unitList" type="text" maxlength="15" placeholder="Pick or type: pcs, box, pack, bottle" autocomplete="off"></div>
       <div class="block"><label for="iNote">Note</label><textarea class="field" id="iNote" rows="2" maxlength="200"></textarea></div>
       <p class="help" id="iUpdated"></p>
       <div class="actions"><button class="primary" id="saveItem">Save</button><button class="text-btn danger" id="delItem">Delete</button></div>
@@ -88,6 +88,7 @@
 
 <script src="inventory-default.js"></script>
 <script src="app-data.js"></script>
+<script src="pos-config.js"></script>
 <script>
 (function () {
   var D = window.MBData, esc = D.esc, $ = function (id) { return document.getElementById(id); };
@@ -186,6 +187,7 @@
     $('itemTitle').textContent = isNew ? 'Add item' : 'Edit item';
     $('iName').value = ed.name; $('iGroup').value = ed.group || ''; $('iQty').value = ed.qty === null || ed.qty === undefined ? '' : ed.qty;
     $('iUnit').value = ed.unit || ''; $('iNote').value = ed.note || '';
+    $('unitList').innerHTML = (window.MBConfig ? MBConfig.get().units : ['pcs','box','pack','bottle']).map(function (u) { return '<option value="' + esc(u) + '">'; }).join('');
     $('groups').innerHTML = groupsList().map(function (g) { return '<option value="' + esc(g) + '">'; }).join('');
     $('iUpdated').textContent = isNew ? 'New items are added to the end of their group.' : 'Last changed ' + ed.updated;
     $('delItem').style.display = isNew ? 'none' : '';
