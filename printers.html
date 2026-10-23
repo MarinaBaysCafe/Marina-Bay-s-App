@@ -109,7 +109,7 @@
       </div>
       <div class="frow"><label for="fName">Name</label><input class="field" id="fName" type="text" maxlength="30" placeholder="Counter printer" autocomplete="off"></div>
       <div class="frow"><label for="fType">Connection</label><select class="field" id="fType"></select></div>
-      <div class="frow" id="devRow"><label>Printer</label><span class="devname" id="devName"></span><button class="devbtn" id="pairBtn">Choose</button></div>
+      <div class="frow" id="devRow"><label>Printer</label><span class="devname" id="devName"></span><button class="devbtn" id="pairBtn">Choose</button><button class="devbtn" id="unpairBtn" style="margin-left:6px">Unpair</button></div>
       <p class="help" id="typeHelp"></p>
       <div class="frow"><label for="fWidth">Paper width</label>
         <select class="field" id="fWidth"><option value="58">58 mm</option><option value="80">80 mm</option></select></div>
@@ -231,6 +231,7 @@
     $('devRow').style.display = needsDev ? '' : 'none';
     $('devName').textContent = ed.devName || 'None chosen';
     $('pairBtn').textContent = ed.devName ? 'Change' : 'Choose';
+    $('unpairBtn').style.display = ed.devName ? '' : 'none';
     $('cutRow').style.display = t === 'dialog' ? 'none' : '';
     var help = HELP[t], warn = false;
     if (!P.can[t]) { help = (t === 'rawbt' ? 'RawBT only works on Android phones.' : 'This browser cannot use this connection. Try Chrome.') + ' ' + help; warn = true; }
@@ -258,6 +259,10 @@
     try { await P.pair(ed); toast('Printer chosen'); }
     catch (e) { if (!P.isCancel(e)) toast('Could not connect: ' + ((e && e.message) || e)); }
     b.disabled = false; paintType();
+  };
+  $('unpairBtn').onclick = async function () {
+    if (!confirm('Unpair this printer? It will stay paired until you do this, and you will need to choose it again to print.')) return;
+    await P.unpair(ed); P.save(); toast('Unpaired'); paintType();
   };
   $('saveBtn').onclick = function () {
     readForm();

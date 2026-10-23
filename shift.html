@@ -210,7 +210,7 @@
       (list.map(function (s) {
         return '<button class="prow" data-id="' + esc(s.id) + '"><div class="what"><b>Order ' + s.n + ' · ' + esc(S.fmtTime(s.t)) +
           (s.ref ? '<span class="badge warn">Refunded</span>' : '') + '</b><span class="s">' + esc(summary(s)) + '</span></div><div class="r num">' + N(s.net) +
-          '<span class="s" style="font-size:12px;color:var(--muted)">' + (s.pay === 'cash' ? 'Cash' : 'E-wallet') + '</span></div></button>';
+          '<span class="s" style="font-size:12px;color:var(--muted)">' + (s.pay === 'cash' ? 'Cash' : s.pay === 'split' ? 'Split' : 'E-wallet') + '</span></div></button>';
       }).join('') || '<div class="empty">No sales yet in this shift.</div>');
   }
   $('salesBody').addEventListener('click', function (e) {
@@ -223,7 +223,7 @@
       return row(l.qty + ' x ' + l.name, N(unit * l.qty), 0, meta.join(', '));
     }).join('');
     if (s.disc) body += row('Discount', '-' + N(s.disc));
-    body += row('Total', N(s.net), 1) + row(s.pay === 'cash' ? 'Cash received' : 'E-wallet', N(s.tend)) + (s.pay === 'cash' ? row('Change', N(s.change)) : '');
+    body += row('Total', N(s.net), 1) + ((s.pays || []).map(function (x) { return row(x.name, N(x.amt)); }).join('')) + (S.cashOf(s) > 0 || s.pay === 'cash' ? row('Cash received', N(s.tend)) + row('Change', N(s.change)) : '');
     $('sheet').innerHTML = '<div class="sh-head"><div class="t"><b>Order ' + s.n + '</b><span>' + esc(S.fmtDT(s.t)) + (s.type ? ' · ' + S.typeText(s.type) : '') + (s.ref ? ' · Refunded' : '') + '</span></div><button class="icon-btn" data-close aria-label="Close">&times;</button></div>' +
       '<div class="sh-body">' + body + '</div><div class="sh-foot">' + (s.ref ? '' : '<button class="text-btn danger" id="saleRefund">Refund</button>') + '<button class="primary" id="salePrint">Print receipt</button></div>';
     openSheet();
@@ -259,7 +259,7 @@
   $('csvSales').onclick = function () {
     var lines = ['Date,Time,Shift,Order,Items,Gross,Discount,Net,Payment,Refunded'];
     S.sales().forEach(function (s) {
-      lines.push([S.phDate(s.t), q(S.fmtTime(s.t)), s.shift == null ? '' : s.shift, s.n, q(summary(s)), s.gross, s.disc, s.net, s.pay === 'cash' ? 'Cash' : 'E-wallet', s.ref ? 'yes' : ''].join(','));
+      lines.push([S.phDate(s.t), q(S.fmtTime(s.t)), s.shift == null ? '' : s.shift, s.n, q(summary(s)), s.gross, s.disc, s.net, s.pay === 'cash' ? 'Cash' : s.pay === 'split' ? 'Split' : 'E-wallet', s.ref ? 'yes' : ''].join(','));
     });
     D.download('marina-bays-sales.csv', lines.join('\n'), 'text/csv'); D.toast('CSV saved');
   };

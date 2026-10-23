@@ -18,6 +18,8 @@ var FILES = [
   './calendar.html',
   './data.html',
   './shift-lib.js',
+  './pos-config.js',
+  './settings.html',
   './app-data.js',
   './menu-default.js',
   './printer.js',

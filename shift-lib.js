@@ -87,13 +87,21 @@
     });
     gross = r2(gross);
     var disc = r2(Math.min(pay.disc || 0, gross)), net = r2(gross - disc);
+    var pays = [], nonCash = 0, cashTend = 0;
+    if (pay.splits) {
+      pay.splits.forEach(function (x) { var a = r2(x.amt); if (a <= 0) return; if (x.cash) cashTend += a; else { pays.push({ id: x.id, name: x.name, amt: a }); nonCash += a; } });
+      nonCash = Math.min(nonCash, net);
+    } else if (pay.method === 'ewallet') { pays.push({ id: 'ewallet', name: 'E-wallet', amt: net }); nonCash = net; }
+    else cashTend = pay.tend || net;
+    var ca = r2(net - nonCash);
     var cur = shifts.cur, count = cur ? sales.sales.filter(function (s) { return s.shift === cur.no; }).length : 0;
     var posNo = /(\d+)/.exec(cur && cur.pos ? cur.pos : posName());
     return { id: D.uid('sale'), type: pay.type === 'take' ? 'take' : 'dine', emp: cur ? cur.openedBy || '' : '', pos: cur && cur.pos ? cur.pos : posName(),
              rno: '#' + (posNo ? posNo[1] : '1') + '-' + (sales.sales.length + 1), t: Date.now(), shift: cur ? cur.no : null, n: count + 1, lines: lines, gross: gross, disc: disc, net: net,
-             pay: pay.method === 'ewallet' ? 'ewallet' : 'cash', tend: r2(pay.method === 'cash' ? (pay.tend || net) : net),
-             change: r2(pay.method === 'cash' ? Math.max(0, (pay.tend || net) - net) : 0), ref: 0 };
+             pay: nonCash === 0 ? 'cash' : (ca === 0 ? 'ewallet' : 'split'), ca: ca, pays: pays, discs: pay.discs || [],
+             tend: r2(cashTend), change: r2(Math.max(0, cashTend - ca)), ref: 0 };
   }
+  function cashOf(s) { return s.ca != null ? s.ca : (s.pay === 'cash' ? s.net : 0); }
   function addSale(s) { sales.sales.push(s); return saveSales(); }
   function refund(id) { var s = sales.sales.filter(function (x) { return x.id === id; })[0]; if (!s || s.ref) return false; s.ref = 1; s.refT = Date.now(); return saveSales(); }
   function salesOf(no) { return sales.sales.filter(function (s) { return s.shift === no; }); }
@@ -140,7 +148,7 @@
     sales.sales.forEach(function (s) {
       var x = d(phDate(s.t)); x.orders++; x.gross += s.gross;
       if (s.ref) x.refunds += s.gross;
-      else { x.discounts += s.disc; if (s.pay === 'cash') x.cash += s.net; else x.ewallet += s.net; }
+      else { x.discounts += s.disc; x.cash += cashOf(s); x.ewallet += s.net - cashOf(s); }
       s.lines.forEach(function (l) {
         if (l.cup) { x.cups[l.cup] = (x.cups[l.cup] || 0) + l.qty; x.drinks += l.qty; }
         if (l.lid) x.lids[l.lid] = (x.lids[l.lid] || 0) + l.qty;
@@ -205,9 +213,9 @@
     var gross = 0, refunds = 0, disc = 0, cashPay = 0, cashRef = 0, salesCash = 0, ewallet = 0, drinks = 0, cups = {}, lids = {};
     ss.forEach(function (s) {
       gross += s.gross;
-      if (s.pay === 'cash') cashPay += s.net;
-      if (s.ref) { refunds += s.gross; if (s.pay === 'cash') cashRef += s.net; }
-      else { disc += s.disc; if (s.pay === 'cash') salesCash += s.net; else ewallet += s.net; }
+      cashPay += cashOf(s);
+      if (s.ref) { refunds += s.gross; cashRef += cashOf(s); }
+      else { disc += s.disc; salesCash += cashOf(s); ewallet += s.net - cashOf(s); }
       s.lines.forEach(function (l) {
         if (l.cup) { cups[l.cup] = (cups[l.cup] || 0) + l.qty; drinks += l.qty; }
         if (l.lid) lids[l.lid] = (lids[l.lid] || 0) + l.qty;
@@ -321,8 +329,10 @@
     p.rule('.');
     if (s.disc) { p.row('Subtotal', num(s.gross)); p.row('Discount', '-' + num(s.disc)); }
     p.row('Total', num(s.net), { b: true });
-    p.row(s.pay === 'cash' ? 'Cash' : 'E-wallet', num(s.tend));
-    if (s.pay === 'cash') p.row('Change', num(s.change));
+    (s.discs || []).forEach(function (d) { p.text('  ' + d.name + (d.pct ? ' ' + d.pct + '%' : '') + (d.item ? ' (' + d.item + ')' : ''), { indent: '    ' }); });
+    if (s.pays && s.pays.length) s.pays.forEach(function (x) { p.row(x.name, num(x.amt)); });
+    else if (s.pay === 'ewallet') p.row('E-wallet', num(s.tend));
+    if (cashOf(s) > 0 || (!s.pays && s.pay === 'cash')) { p.row('Cash', num(s.tend)); p.row('Change', num(s.change)); }
     if (s.ref) p.center('REFUNDED', { b: true });
     slipFoot(p, fmtDT(s.t), s.rno || '#' + (sales.sales.indexOf(s) + 1));
   }
@@ -340,7 +350,7 @@
 
   window.MBShift = {
     num: num, sg: sg, fmtDT: fmtDT, fmtTime: fmtTime, phDate: phDate, r2: r2, cupName: cupName, lidName: lidName,
-    sales: function () { return sales.sales; }, salesOf: salesOf, makeSale: makeSale, addSale: addSale, refund: refund,
+    sales: function () { return sales.sales; }, salesOf: salesOf, makeSale: makeSale, cashOf: cashOf, addSale: addSale, refund: refund,
     shifts: function () { return shifts; }, saveShifts: saveShifts, index: buildIndex, day: day, month: month, deductInventory: deductInventory, current: current, start: start, close: close, report: report, lastActual: lastActual,
     posName: posName, setPosName: setPosName, lastUser: lastUser, countedCash: countedCash, expensesBetween: expensesBetween,
     reportReceipt: reportReceipt, saleReceipt: saleReceipt, orderReceipt: orderReceipt, typeText: typeText, cafe: cafe

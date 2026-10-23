@@ -78,6 +78,7 @@
 <script src="menu-default.js"></script>
 <script src="app-data.js"></script>
 <script src="shift-lib.js"></script>
+<script src="pos-config.js"></script>
 <script>
 (function () {
   var D = window.MBData, esc = D.esc, $ = function (id) { return document.getElementById(id); };
@@ -377,62 +378,104 @@
   /* ---------- charge ---------- */
   var S = window.MBShift, pay = null, lastSale = null;
   function money(n) { return D.peso(n); }
+  function CFG() { return window.MBConfig.get(); }
   function payNums() {
-    var gross = S.r2(cartTotal()), v = parseFloat(pay.disc) || 0;
-    var d = pay.dt === 'pct' ? gross * Math.min(Math.max(v, 0), 100) / 100 : Math.min(Math.max(v, 0), gross);
-    d = S.r2(d);
-    var net = S.r2(gross - d), tend = pay.method === 'cash' ? (pay.tend === '' ? net : (parseFloat(pay.tend) || 0)) : net;
-    return { gross: gross, d: d, net: net, tend: tend, change: S.r2(tend - net) };
+    var cfg = CFG(), gross = S.r2(cartTotal()), recs = [], allPct = 0, linePct = {};
+    Object.keys(pay.dsel).forEach(function (id) {
+      var pr = cfg.discounts.filter(function (x) { return x.id === id; })[0], sc = pay.dsel[id]; if (!pr) return;
+      if (sc === 'all' || !cart[sc]) { allPct += pr.pct; sc = 'all'; } else linePct[sc] = (linePct[sc] || 0) + pr.pct;
+      recs.push({ id: id, name: pr.name, pct: pr.pct, item: sc === 'all' ? '' : cart[sc].name });
+    });
+    var d = gross * Math.min(allPct, 100) / 100;
+    Object.keys(linePct).forEach(function (i) { d += lineTotal(cart[i]) * Math.min(linePct[i], 100) / 100; });
+    var v = parseFloat(pay.disc) || 0;
+    var man = pay.dt === 'pct' ? gross * Math.min(Math.max(v, 0), 100) / 100 : Math.max(v, 0);
+    if (man > 0) recs.push({ id: 'manual', name: 'Discount', pct: pay.dt === 'pct' ? v : 0 });
+    d = S.r2(Math.min(d + man, gross));
+    var net = S.r2(gross - d), nonCash = 0, cashIn = null;
+    cfg.methods.forEach(function (m) {
+      var raw = pay.amt[m.id], a = parseFloat(raw) || 0;
+      if (m.id === 'cash') cashIn = (raw === undefined || raw === '') ? null : a; else nonCash += a;
+    });
+    nonCash = S.r2(nonCash);
+    var cashDue = S.r2(Math.max(0, net - nonCash)), tend = cashIn === null ? cashDue : cashIn;
+    return { gross: gross, d: d, net: net, recs: recs, nonCash: nonCash, cashDue: cashDue, tend: tend, change: S.r2(tend - cashDue), over: nonCash > net + 0.004 };
   }
   function openCharge() {
     if (!cart.length) return;
     if (!S.current()) { openStart(); return; }
-    pay = { dt: 'peso', disc: '', method: 'cash', tend: '' };
+    pay = { dt: 'peso', disc: '', dsel: {}, amt: {} };
     mode = 'pay'; renderPay(); openSheet();
   }
   function renderPay() {
-    var n = payNums(), cur = S.current();
+    var cfg = CFG(), n = payNums(), cur = S.current();
     var h = '<div class="sh-head"><div class="t"><b>Charge</b><span>Shift ' + cur.no + ' · ' + cartCount() + (cartCount() === 1 ? ' item' : ' items') + ' · ' + S.typeText(orderType) +
       '</span></div><button class="icon-btn" data-close aria-label="Close">&times;</button></div><div class="sh-body">';
     h += '<div class="totalrow"><span>Total</span><span class="num">' + money(n.gross) + '</span></div>';
-    h += '<div class="frow"><label for="payDisc">Discount</label><div class="seg2"><button data-dt="peso" class="' + (pay.dt === 'peso' ? 'on' : '') + '">₱</button>' +
+    cfg.discounts.forEach(function (pr) {
+      var on = pay.dsel[pr.id] !== undefined;
+      h += '<label class="check"><input type="checkbox" data-dp="' + esc(pr.id) + '"' + (on ? ' checked' : '') + '> ' + esc(pr.name) + ' ' + pr.pct + '%</label>';
+      if (on) {
+        h += '<div class="frow"><label>Apply ' + esc(pr.name) + ' to</label><select class="field" data-ds="' + esc(pr.id) + '"><option value="all">Whole order</option>' +
+          cart.map(function (l, i) { return '<option value="' + i + '"' + (String(pay.dsel[pr.id]) === String(i) ? ' selected' : '') + '>' + esc(l.name) + (l.opt ? ' (' + esc(l.opt) + ')' : '') + '</option>'; }).join('') + '</select></div>';
+      }
+    });
+    h += '<div class="frow"><label for="payDisc">Other discount</label><div class="seg2"><button data-dt="peso" class="' + (pay.dt === 'peso' ? 'on' : '') + '">₱</button>' +
       '<button data-dt="pct" class="' + (pay.dt === 'pct' ? 'on' : '') + '">%</button></div>' +
       '<input class="field num" id="payDisc" style="max-width:110px" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" value="' + esc(pay.disc) + '"></div>';
-    h += '<div class="totalrow"><span>To pay</span><span class="num" id="payNet">' + money(n.net) + '</span></div>';
-    h += '<div class="frow"><label>Paid with</label><div class="seg2"><button data-pm="cash" class="' + (pay.method === 'cash' ? 'on' : '') + '">Cash</button>' +
-      '<button data-pm="ewallet" class="' + (pay.method === 'ewallet' ? 'on' : '') + '">E-wallet</button></div></div>';
-    h += '<div id="cashBlock"' + (pay.method === 'cash' ? '' : ' hidden') + '><div class="frow"><label for="payTend">Cash received</label>' +
-      '<input class="field num" id="payTend" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Exact" value="' + esc(pay.tend) + '"></div>' +
-      '<div class="quick"><button data-qc="exact">Exact</button><button data-qc="100">100</button><button data-qc="200">200</button><button data-qc="500">500</button><button data-qc="1000">1,000</button></div>' +
-      '<div class="totalrow"><span id="chgLabel">Change</span><span class="num" id="payChange"></span></div></div>';
+    h += '<div class="totalrow"><span>Discount</span><span class="num" id="payDiscAmt"></span></div>';
+    h += '<div class="totalrow"><span>To pay</span><span class="num" id="payNet"></span></div>';
+    h += '<div class="help2">Split the payment: fill in an amount for each method. Cash can be left blank to cover the rest.</div>';
+    cfg.methods.forEach(function (m) {
+      var cash = m.id === 'cash';
+      h += '<div class="frow"><label for="pm-' + esc(m.id) + '">' + esc(m.name) + (cash ? ' received' : '') + '</label>' +
+        '<input class="field num" id="pm-' + esc(m.id) + '" data-pm="' + esc(m.id) + '" type="number" inputmode="decimal" min="0" step="0.01" placeholder="' + (cash ? 'Rest' : '0') + '" value="' + esc(pay.amt[m.id] === undefined ? '' : pay.amt[m.id]) + '">' +
+        (cash ? '' : '<button class="text-btn" data-rest="' + esc(m.id) + '">Rest</button>') + '</div>';
+    });
+    h += '<div class="quick"><button data-qc="exact">Exact</button><button data-qc="100">100</button><button data-qc="200">200</button><button data-qc="500">500</button><button data-qc="1000">1,000</button></div>';
+    h += '<div class="totalrow"><span id="chgLabel">Change</span><span class="num" id="payChange"></span></div>';
     h += '</div><div class="sh-foot"><button class="text-btn" data-close>Cancel</button><button class="primary" id="payGo"></button></div>';
     $('sheet').innerHTML = h; refreshPay();
   }
   function refreshPay() {
     var n = payNums();
-    $('payNet').textContent = money(n.net);
+    $('payNet').textContent = money(n.net); $('payDiscAmt').textContent = n.d ? '-' + money(n.d) : '₱0.00';
     $('payGo').textContent = 'Complete sale · ' + D.pesoShort(n.net);
-    if (pay.method === 'cash') {
-      $('chgLabel').textContent = n.change < 0 ? 'Still needed' : 'Change';
-      $('payChange').textContent = money(Math.abs(n.change));
-      $('payChange').style.color = n.change < 0 ? 'var(--bad)' : '';
-    }
+    var short = n.tend < n.cashDue;
+    $('chgLabel').textContent = n.over ? 'Over by' : short ? 'Still needed' : 'Change';
+    $('payChange').textContent = money(n.over ? n.nonCash - n.net : Math.abs(n.change));
+    $('payChange').style.color = (short || n.over) ? 'var(--bad)' : '';
+  }
+  function payText(s) {
+    var parts = [];
+    if (s.pays && s.pays.length) s.pays.forEach(function (x) { parts.push(x.name + ' ' + money(x.amt)); });
+    else if (s.pay === 'ewallet') parts.push('E-wallet');
+    var c = S.cashOf(s);
+    if (c > 0 || !parts.length) parts.unshift('Cash ' + money(s.tend) + (s.change ? ' (change ' + money(s.change) + ')' : ''));
+    return parts.join(' + ');
   }
   function completeSale() {
-    var n = payNums();
-    if (pay.method === 'cash' && n.tend < n.net) { D.toast('Cash received is less than the total'); return; }
-    var sale = S.makeSale(cart, { disc: n.d, method: pay.method, tend: n.tend, type: orderType });
+    var cfg = CFG(), n = payNums();
+    if (n.over) { D.toast('Non-cash amounts are more than the total'); return; }
+    if (n.tend < n.cashDue) { D.toast('Cash received is less than the amount due'); return; }
+    var splits = cfg.methods.map(function (m) {
+      return { id: m.id, name: m.name, cash: m.id === 'cash', amt: m.id === 'cash' ? n.tend : (parseFloat(pay.amt[m.id]) || 0) };
+    });
+    var sale = S.makeSale(cart, { disc: n.d, discs: n.recs, splits: splits, type: orderType });
     if (fixing) sale.fix = fixing.id;
     if (!S.addSale(sale)) { D.toast('Could not save the sale. Storage may be full.'); return; }
     if (fixing) { S.refund(fixing.id); fixing = null; }
     lastSale = sale; cart = []; setType('dine'); saveCart(); paintBar(); paintOrdBtn();
     mode = 'done'; renderDone();
+    if (cfg.autoPrint) {
+      MBPrinter.print('pos', function (p) { S.saleReceipt(p, sale); }).then(function (m) { if (m) D.toast(m); }).catch(function () {});
+    }
   }
   function renderDone() {
     var s = lastSale;
     var h = '<div class="sh-head"><div class="t"><b>Sale saved</b><span>Order ' + s.n + ' · Shift ' + s.shift + ' · ' + S.typeText(s.type) + '</span></div><button class="icon-btn" data-close aria-label="Close">&times;</button></div><div class="sh-body">' +
-      '<div class="big num">' + money(s.net) + '</div><div class="bigsub">' + (s.pay === 'cash' ? 'Cash · Change ' + money(s.change) : 'E-wallet') + (s.disc ? ' · Discount ' + money(s.disc) : '') + '</div></div>' +
-      '<div class="sh-foot"><button class="secondary" id="printSale">Print receipt</button><button class="primary" data-close>New order</button></div>';
+      '<div class="big num">' + money(s.net) + '</div><div class="bigsub">' + esc(payText(s)) + (s.disc ? ' · Discount ' + money(s.disc) : '') + '</div></div>' +
+      '<div class="sh-foot"><button class="secondary" id="printSale">Print again</button><button class="primary" data-close>New order</button></div>';
     $('sheet').innerHTML = h;
   }
   async function printSale(btn) {
@@ -460,8 +503,9 @@
     var t = e.target;
     if (mode === 'pay') {
       var dt = t.closest('button[data-dt]'); if (dt) { pay.dt = dt.getAttribute('data-dt'); renderPay(); return; }
-      var pm = t.closest('button[data-pm]'); if (pm) { pay.method = pm.getAttribute('data-pm'); renderPay(); return; }
-      var qc = t.closest('button[data-qc]'); if (qc) { var v = qc.getAttribute('data-qc'); pay.tend = v === 'exact' ? '' : v; renderPay(); return; }
+      var rs = t.closest('button[data-rest]');
+      if (rs) { var o = 0, nn = payNums(); CFG().methods.forEach(function (m) { if (m.id !== 'cash' && m.id !== rs.getAttribute('data-rest')) o += parseFloat(pay.amt[m.id]) || 0; }); pay.amt[rs.getAttribute('data-rest')] = String(Math.max(0, S.r2(nn.net - o))); renderPay(); return; }
+      var qc = t.closest('button[data-qc]'); if (qc) { var v = qc.getAttribute('data-qc'); pay.amt.cash = v === 'exact' ? '' : v; renderPay(); return; }
       if (t.id === 'payGo') completeSale();
     } else if (mode === 'start') { if (t.id === 'startGo') doStart(); }
     else if (mode === 'done') { if (t.id === 'printSale') printSale(t); }
@@ -469,7 +513,13 @@
   $('sheet').addEventListener('input', function (e) {
     if (mode !== 'pay') return;
     if (e.target.id === 'payDisc') { pay.disc = e.target.value; refreshPay(); }
-    else if (e.target.id === 'payTend') { pay.tend = e.target.value; refreshPay(); }
+    else if (e.target.getAttribute('data-pm')) { pay.amt[e.target.getAttribute('data-pm')] = e.target.value; refreshPay(); }
+  });
+  $('sheet').addEventListener('change', function (e) {
+    if (mode !== 'pay') return;
+    var dp = e.target.getAttribute('data-dp'), ds = e.target.getAttribute('data-ds');
+    if (dp) { if (e.target.checked) pay.dsel[dp] = 'all'; else delete pay.dsel[dp]; renderPay(); }
+    else if (ds) { pay.dsel[ds] = e.target.value; renderPay(); }
   });
 
   /* ---------- order history ---------- */
@@ -512,7 +562,7 @@
     });
     if (s.disc) h += '<div class="line"><div class="l1"><span>Discount</span><span class="num">-' + D.pesoShort(s.disc) + '</span></div></div>';
     h += '<div class="totalrow"><span>Total</span><span class="num">' + money(s.net) + '</span></div>' +
-      '<div class="help2">' + (s.pay === 'cash' ? 'Cash ' + money(s.tend) + ' · Change ' + money(s.change) : 'E-wallet') + (s.emp ? ' · ' + esc(s.emp) : '') + (s.fix ? ' · Correction of an earlier order' : '') + '</div></div>';
+      '<div class="help2">' + payText(s) + (s.emp ? ' · ' + esc(s.emp) : '') + (s.fix ? ' · Correction of an earlier order' : '') + '</div></div>';
     h += '<div class="sh-foot">' + (s.ref ? '' : '<button class="text-btn danger" id="ordRefund">Refund</button><button class="secondary" id="ordFix">Correct</button>') +
       '<button class="primary" id="ordPrint">Print receipt</button></div>';
     $('sheet').innerHTML = h;
@@ -549,6 +599,7 @@
   });
 
   paintChips(); paintItems(); paintBar(); paintOrdBtn();
+  try { MBPrinter.warm(); } catch (e) {}
   window.addEventListener('pageshow', function () { paintChips(); paintItems(); paintOrdBtn(); });
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {

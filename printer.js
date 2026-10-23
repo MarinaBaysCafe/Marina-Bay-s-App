@@ -177,7 +177,7 @@
       }
     }
     if (!ch) { try { device.gatt.disconnect(); } catch (e) {} throw new Error('Printer found, but its printing channel is not recognized. Try the RawBT option instead'); }
-    device.addEventListener('gattserverdisconnected', function () { delete conns[pr.id]; });
+    device.addEventListener('gattserverdisconnected', function () { delete conns[pr.id]; if (pr.devName && !pr._unpaired) setTimeout(function () { connectBLE(pr, false).catch(function () {}); }, 1500); });
     pr.devName = device.name || pr.devName; save();
     conns[pr.id] = { device: device, char: ch };
     return conns[pr.id];
@@ -334,6 +334,28 @@
     if (pr.type === 'ble') await connectBLE(pr, true);
     else if (pr.type === 'usb') await openUSB(pr, true);
   }
+  // Unpair: disconnect, make the browser forget the device, and clear it from the printer.
+  async function unpair(pr) {
+    pr._unpaired = true;
+    var c = conns[pr.id]; delete conns[pr.id];
+    try {
+      if (c && c.device) { try { c.device.gatt.disconnect(); } catch (e) {} if (c.device.forget) await c.device.forget(); }
+      if (pr.devName && navigator.bluetooth && navigator.bluetooth.getDevices) {
+        var l = await navigator.bluetooth.getDevices();
+        for (var i = 0; i < l.length; i++) if (l[i].name === pr.devName && l[i].forget) await l[i].forget();
+      }
+      if (c && c.usb) { try { await c.usb.close(); } catch (e) {} if (c.usb.forget) await c.usb.forget(); }
+      else if (pr.usb && navigator.usb) {
+        var ul = await navigator.usb.getDevices();
+        for (var j = 0; j < ul.length; j++) if (ul[j].vendorId === pr.usb.vid && ul[j].productId === pr.usb.pid && ul[j].forget) await ul[j].forget();
+      }
+    } catch (e) {}
+    pr.devName = ''; pr.usb = null; pr._unpaired = false; save();
+  }
+  // Reconnect to saved Bluetooth printers when a page opens, so the first receipt prints right away.
+  function warm() {
+    state.printers.forEach(function (pr) { if (pr.type === 'ble' && pr.devName) connectBLE(pr, false).catch(function () {}); });
+  }
   async function test(pr) { await sendTo(pr, testFn); }
   function isCancel(e) { return cancelled(e); }
 
@@ -359,6 +381,7 @@
   })();
 
   window.MBPrinter = {
+    unpair: unpair, warm: warm,
     print: print, mount: mount, preview: preview, previewHtml: previewHtml, save: save, state: state, can: can,
     TYPES: TYPES, KINDS: KINDS, newPrinter: newPrinter, pair: pair, test: test, isCancel: isCancel
   };
