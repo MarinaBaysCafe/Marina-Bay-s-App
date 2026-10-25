@@ -116,6 +116,13 @@
       <div class="frow"><label for="fCopies">Copies</label>
         <select class="field" id="fCopies"><option>1</option><option>2</option><option>3</option></select></div>
       <label class="check" id="cutRow"><input type="checkbox" id="fCut"> Cut paper after printing</label>
+      <div class="sect" style="padding-bottom:2px" id="drawerSect">Cash drawer</div>
+      <div class="frow" id="drawerRow"><label for="fDrawer">Drawer on this printer</label>
+        <select class="field" id="fDrawer"><option value="off">None</option><option value="all">Open on every charge</option><option value="cash">Open on cash sales only</option></select></div>
+      <div class="frow" id="drawerPinRow"><label for="fDrawerPin">Drawer cable pin</label>
+        <select class="field" id="fDrawerPin"><option value="0">Pin 2 (most drawers)</option><option value="1">Pin 5 (try if pin 2 does nothing)</option></select>
+        <button class="devbtn" id="drawerTest" type="button" style="margin-left:6px">Test</button></div>
+      <p class="help" id="drawerHelp">The drawer plugs into the printer's RJ11/RJ12 socket. It works with Bluetooth, USB and RawBT printers, not with the print dialog.</p>
       <div class="sect" style="padding-bottom:2px">Print these receipts</div>
       <label class="check"><input type="checkbox" id="kCounter"> Money counter receipts</label>
       <label class="check"><input type="checkbox" id="kExpense"> Expense receipts</label>
@@ -218,6 +225,7 @@
     $('fName').value = p.name; $('fType').value = p.type;
     $('fWidth').value = String(p.width); $('fCopies').value = String(p.copies);
     $('fCut').checked = !!p.cut;
+    $('fDrawer').value = p.drawer || 'off'; $('fDrawerPin').value = String(p.drawerPin ? 1 : 0);
     $('kCounter').checked = p.kinds.indexOf('counter') !== -1;
     $('kExpense').checked = p.kinds.indexOf('expense') !== -1;
     $('kPos').checked = p.kinds.indexOf('pos') !== -1;
@@ -233,6 +241,7 @@
     $('pairBtn').textContent = ed.devName ? 'Change' : 'Choose';
     $('unpairBtn').style.display = ed.devName ? '' : 'none';
     $('cutRow').style.display = t === 'dialog' ? 'none' : '';
+    ['drawerSect', 'drawerRow', 'drawerPinRow', 'drawerHelp'].forEach(function (i) { $(i).style.display = t === 'dialog' ? 'none' : ''; });
     var help = HELP[t], warn = false;
     if (!P.can[t]) { help = (t === 'rawbt' ? 'RawBT only works on Android phones.' : 'This browser cannot use this connection. Try Chrome.') + ' ' + help; warn = true; }
     $('typeHelp').textContent = help; $('typeHelp').classList.toggle('warn', warn);
@@ -241,6 +250,7 @@
     ed.name = $('fName').value.trim(); ed.type = $('fType').value;
     ed.width = +$('fWidth').value === 80 ? 80 : 58; ed.copies = +$('fCopies').value || 1;
     ed.cut = $('fCut').checked;
+    ed.drawer = $('fDrawer').value; ed.drawerPin = +$('fDrawerPin').value ? 1 : 0;
     ed.kinds = [];
     if ($('kCounter').checked) ed.kinds.push('counter');
     if ($('kExpense').checked) ed.kinds.push('expense');
@@ -250,8 +260,14 @@
   $('fType').onchange = function () {
     var old = ed.type; readForm();
     if (old !== ed.type) { ed.devName = ''; ed.usb = null; }
-    if (ed.type === 'dialog') ed.cut = false;
+    if (ed.type === 'dialog') { ed.cut = false; ed.drawer = 'off'; $('fDrawer').value = 'off'; }
     paintType();
+  };
+  $('drawerTest').onclick = async function () {
+    readForm(); var b = $('drawerTest'); b.disabled = true;
+    try { await P.testDrawer(ed); toast('Drawer signal sent'); }
+    catch (e) { toast('Could not open: ' + ((e && e.message) || e)); }
+    finally { b.disabled = false; }
   };
   $('back').onclick = function () { show('list'); };
   $('pairBtn').onclick = async function () {

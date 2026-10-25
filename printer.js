@@ -32,7 +32,7 @@
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function newPrinter(type) {
     return { id: uid(), name: '', type: type || (can.ble ? 'ble' : 'dialog'), width: 58, copies: 1, cut: false,
-             devName: '', usb: null, kinds: ['counter', 'expense', 'pos', 'shift'] };
+             devName: '', usb: null, drawer: 'off', drawerPin: 0, kinds: ['counter', 'expense', 'pos', 'shift'] };
   }
   var state = { v: 3, printers: [], receipt: { shop: "MARINA BAY'S CAFE", details: '', footer: '', logo: true } };
   (function load() {
@@ -277,9 +277,17 @@
   }
 
   /* ---------- sending ---------- */
-  async function sendTo(pr, fn) {
+  /* Cash drawer: ESC p m t1 t2 pulses the drawer connected to the printer's RJ11/RJ12 port.
+     pr.drawer: 'off' | 'all' (every charge) | 'cash' (cash sales only). pr.drawerPin: 0 (pin 2) or 1 (pin 5). */
+  function kickBytes(pr) { return [0x1b, 0x70, pr.drawerPin ? 1 : 0, 0x19, 0xfa]; }
+  function wantKick(pr, opts) {
+    if (!opts || !opts.sale || pr.type === 'dialog') return false;
+    return pr.drawer === 'all' || (pr.drawer === 'cash' && !!opts.cash);
+  }
+  async function sendTo(pr, fn, opts) {
     var lines = build(fn, pr.width), bytes = [];
     for (var i = 0; i < (pr.copies || 1); i++) bytes = bytes.concat(toBytes(lines, pr));
+    if (wantKick(pr, opts)) bytes = bytes.concat(kickBytes(pr));
     if (pr.type === 'ble') await sendBLE(await connectBLE(pr, false), bytes);
     else if (pr.type === 'usb') await sendUSB(await openUSB(pr, false), bytes);
     else if (pr.type === 'rawbt') sendRawBT(bytes);
@@ -288,7 +296,7 @@
   function cancelled(e) { return e && e.name === 'NotFoundError' && /cancel|no device selected|not selected/i.test(e.message || ''); }
 
   // kind: 'counter' or 'expense'. Returns a short message to show, or ''.
-  async function print(kind, fn) {
+  async function print(kind, fn, opts) {
     var ps = state.printers.filter(function (p) { return p.kinds.indexOf(kind) !== -1; });
     if (!ps.length) {
       if (confirm('No printer is set up for this receipt yet. Open printer settings?')) window.location.href = 'printers.html';
@@ -298,7 +306,7 @@
     var handoff = ps.filter(function (p) { return p.type === 'rawbt' || p.type === 'dialog'; });
     var done = [], failed = [], fallbackWidth = 58;
     for (var i = 0; i < direct.length; i++) {
-      try { await sendTo(direct[i], fn); done.push(direct[i].name); }
+      try { await sendTo(direct[i], fn, opts); done.push(direct[i].name); }
       catch (e) {
         if (cancelled(e)) return '';
         delete conns[direct[i].id];
@@ -311,7 +319,7 @@
       failed = [];
     }
     for (var j = 0; j < handoff.length; j++) {
-      try { await sendTo(handoff[j], fn); done.push(handoff[j].name); }
+      try { await sendTo(handoff[j], fn, opts); done.push(handoff[j].name); }
       catch (e2) { failed.push(handoff[j].name + ': ' + ((e2 && e2.message) || e2)); }
     }
     if (failed.length) return 'Could not print: ' + failed[0];
@@ -357,6 +365,31 @@
     state.printers.forEach(function (pr) { if (pr.type === 'ble' && pr.devName) connectBLE(pr, false).catch(function () {}); });
   }
   async function test(pr) { await sendTo(pr, testFn); }
+  // send only the drawer pulse (no paper). Used by the Test button and the POS Drawer button.
+  async function sendKick(pr) {
+    var bytes = kickBytes(pr);
+    if (pr.type === 'ble') await sendBLE(await connectBLE(pr, false), bytes);
+    else if (pr.type === 'usb') await sendUSB(await openUSB(pr, false), bytes);
+    else if (pr.type === 'rawbt') sendRawBT(bytes);
+    else throw new Error('The print dialog cannot open a cash drawer');
+  }
+  async function testDrawer(pr) { await sendKick(pr); }
+  function hasDrawer() { return state.printers.some(function (p) { return p.drawer && p.drawer !== 'off' && p.type !== 'dialog'; }); }
+  /* Open the drawer without printing. opts.sale: also respect "cash sales only". Returns a short message. */
+  async function openDrawer(opts) {
+    opts = opts || {};
+    var ps = state.printers.filter(function (p) {
+      if (!p.drawer || p.drawer === 'off' || p.type === 'dialog') return false;
+      if (opts.skipReceiptPrinters && p.kinds.indexOf('pos') !== -1) return false; // the receipt already carries the pulse
+      return opts.manual ? true : (p.drawer === 'all' || (p.drawer === 'cash' && !!opts.cash));
+    });
+    if (!ps.length) return '';
+    var failed = '';
+    for (var i = 0; i < ps.length; i++) {
+      try { await sendKick(ps[i]); } catch (e) { failed = (e && e.message) || String(e); }
+    }
+    return failed ? 'Could not open the cash drawer: ' + failed : '';
+  }
   function isCancel(e) { return cancelled(e); }
 
   /* ---------- small link shown inside the apps (More tab) ---------- */
@@ -383,6 +416,7 @@
   window.MBPrinter = {
     unpair: unpair, warm: warm,
     print: print, mount: mount, preview: preview, previewHtml: previewHtml, save: save, state: state, can: can,
-    TYPES: TYPES, KINDS: KINDS, newPrinter: newPrinter, pair: pair, test: test, isCancel: isCancel
+    TYPES: TYPES, KINDS: KINDS, newPrinter: newPrinter, pair: pair, test: test, isCancel: isCancel,
+    testDrawer: testDrawer, openDrawer: openDrawer, hasDrawer: hasDrawer
   };
 })();

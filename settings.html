@@ -34,11 +34,15 @@
   <div id="discs"></div><div class="row"><button class="add" id="addD">Add discount</button></div>
   <h3>Inventory units</h3>
   <div id="units"></div><div class="row"><button class="add" id="addU">Add unit</button></div>
+  <h3>Activity log</h3>
+  <div class="note">Refunds, deletes, corrections and manual discounts, newest first. Kept on this phone only (last 500). There is one shared PIN, so "by" is the cashier of the open shift.</div>
+  <div id="audit"></div>
   <h3>Reset settings</h3>
   <div class="note">Resets only these settings (methods, discounts, units, auto-print) to the defaults. Sales, shifts, menu, inventory and recipes are never touched. Your current settings are kept so you can undo.</div>
   <div class="row"><button class="rm" id="reset">Reset settings</button><button class="add" id="undo">Undo reset</button></div>
 </div>
 <script src="pos-config.js"></script>
+<script src="guard.js"></script>
 <script>
 (function () {
   var C = MBConfig, $ = function (i) { return document.getElementById(i); };
@@ -79,7 +83,15 @@
     else return;
     C.save(); paint();
   });
-  paint();
+  function paintAudit() {
+    var l = MBGuard.list(100);
+    $('audit').innerHTML = l.length ? l.map(function (x) {
+      var dt = new Date(x.t).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      return '<div class="row" style="display:block"><b>' + esc(x.a) + '</b> <span style="color:var(--muted)">' + esc(dt) + '</span><div style="font-size:13px">' +
+        esc(x.d) + (x.by ? ' · by ' + esc(x.by) : '') + (x.pos ? ' · ' + esc(x.pos) : '') + (x.why ? ' · "' + esc(x.why) + '"' : '') + '</div></div>';
+    }).join('') : '<div class="note">Nothing logged yet.</div>';
+  }
+  paint(); paintAudit();
 })();
 </script>
 </body>

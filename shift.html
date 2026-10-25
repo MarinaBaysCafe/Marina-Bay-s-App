@@ -78,6 +78,7 @@
 <script src="inventory-default.js"></script>
 <script src="app-data.js"></script>
 <script src="shift-lib.js"></script>
+<script src="guard.js"></script>
 <script src="inv-log.js"></script>
 <script>
 (function () {
@@ -258,11 +259,14 @@
     show('detail');
   }
   $('detailPrint').onclick = function () { if (shown) printReport(shown); };
-  $('detailDel').onclick = function () {
+  $('detailDel').onclick = async function () {
     if (!shown || !shown.closedAt) return;
     var no = shown.no, n = S.salesOf(no).length;
     if (!confirm('Delete Shift ' + no + ' and its ' + n + (n === 1 ? ' order' : ' orders') + ' (' + N(shown.net) + ' net) for good?\nExpenses and the money counter are not touched. This cannot be undone.')) return;
     if (!confirm('Last check: really delete Shift ' + no + '? Download a backup first if you are not sure.')) return;
+    var gd = await MBGuard.ask({ title: 'Delete Shift ' + no, detail: n + (n === 1 ? ' order' : ' orders') + ' and the shift report will be removed.' });
+    if (!gd.ok) return;
+    MBGuard.log('Delete shift', 'Shift ' + no + ' · ' + n + ' orders · ' + N(shown.net) + ' net', gd.reason);
     var back = shown.inventory && shown.inventory.length && window.MBInvLog &&
       confirm('Shift ' + no + ' took cups and lids off the stock when it closed. Put them back in stock?');
     if (back) {

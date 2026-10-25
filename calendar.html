@@ -172,14 +172,15 @@
   function invHtml() {
     var rows = MBInvLog.range(selected, selected)[selected], h = '<div class="sect">Inventory</div>';
     var shown = rows.filter(function (r) { return invAll || r.used > 0 || r.added > 0; });
-    if (selected === today) {
+    var late = selected < today && selected >= MBInvLog.addDays(today, -MBInvLog.LATE_DAYS);
+    if (selected === today || late) {
       h += '<div class="inv-add"><div class="seg2"><button data-kind="used" class="' + (invKind === 'used' ? 'on' : '') + '">Used</button><button data-kind="add" class="' + (invKind === 'add' ? 'on' : '') + '">Added</button></div>' +
         '<input class="field" id="invQ" type="search" placeholder="Search item" value="' + esc(invSearch) + '">' +
         '<select class="field" id="invSel">' + optHtml(rows) + '</select>' +
         '<input class="field num" id="invAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="Amount">' +
         '<button class="primary" id="invDone">Done</button></div>' +
-        '<div class="note" style="padding:0 16px 8px;font-size:12px;color:var(--muted)">Used is for loss or anything not counted from sales. Cups and lids are added automatically when a shift is closed. To fix a wrong count, recount on the Inventory page.</div>';
-    } else h += '<div class="note" style="padding:0 16px 8px;font-size:12px;color:var(--muted)">Stock can only be changed for today.</div>';
+        '<div class="note" style="padding:0 16px 8px;font-size:12px;color:var(--muted)">Used is for loss or anything not counted from sales. Cups and lids are added automatically when a shift is closed. To fix a wrong count, recount on the Inventory page.</div>' + (late ? '<div class="note" style="padding:0 16px 8px;font-size:12px;color:var(--bad)">Late entry for this day. The stock count today changes by the same amount, and the days after this one are updated.</div>' : '');
+    } else h += '<div class="note" style="padding:0 16px 8px;font-size:12px;color:var(--muted)">' + (selected > today ? 'Stock cannot be changed for a day that has not happened yet.' : 'Late entries only go back ' + MBInvLog.LATE_DAYS + ' days.') + '</div>';
     h += '<div class="inv-wrap"><table class="inv"><thead><tr><th>Item</th><th>Beg</th><th>Added</th><th>Used</th><th>End</th><th>Units</th></tr></thead><tbody>';
     var last = null;
     shown.forEach(function (r) {
@@ -201,7 +202,7 @@
     if (t.id === 'invDone') {
       var n = parseFloat($('invAmt').value), id = $('invSel').value;
       if (!id || !(n > 0)) { D.toast('Pick an item and enter an amount'); return; }
-      var msg = MBInvLog.adjust(invKind, id, n);
+      var msg = MBInvLog.adjust(invKind, id, n, selected);
       if (msg) { D.toast(msg); return; }
       invSearch = ''; paintDay(); D.toast('Saved');
     } else if (t.id === 'invAll') { e.preventDefault(); invAll = !invAll; paintDay(); }

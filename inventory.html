@@ -70,6 +70,7 @@
         <div class="rec-kind"><button type="button" data-kind="used" class="on">Used</button><button type="button" data-kind="add">Added</button></div>
         <input class="field" id="recQ" type="search" placeholder="Search item" autocomplete="off">
         <select class="field" id="recSel"></select>
+        <label class="rec-date" style="flex:1 1 100%;font-size:13px;color:var(--muted)">Date of the change <input class="field" id="recDate" type="date" style="margin-left:6px"></label>
         <input class="field num" id="recAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="Amount">
         <button class="primary" id="recDone" type="button">Done</button>
       </div>
@@ -275,10 +276,14 @@
   $('recDone').onclick = function () {
     var n = parseFloat($('recAmt').value), id = $('recSel').value;
     if (!id || !(n > 0)) { D.toast('Pick an item and enter an amount'); return; }
-    var msg = MBInvLog.adjust(recKind, id, n);
+    var rd = $('recDate').value || MBInvLog.localToday();
+    if (rd > MBInvLog.localToday()) { D.toast('That day has not happened yet'); return; }
+    var msg = MBInvLog.adjust(recKind, id, n, rd);
     if (msg) { D.toast(msg); return; }
+    $('recDate').value = MBInvLog.localToday();
     $('recAmt').value = ''; $('recQ').value = ''; recOpts(); paintAll(); D.toast('Saved');
   };
+  (function () { var t = MBInvLog.localToday(); $('recDate').value = t; $('recDate').max = t; $('recDate').min = MBInvLog.addDays(t, -MBInvLog.LATE_DAYS); })();
   $('calLink').href = 'calendar.html?date=' + MBInvLog.localToday();
 
   /* ---------- daily table (same layout as the calendar) ---------- */

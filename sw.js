@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Marina Bay's Cafe. All rights reserved. */
-var CACHE = 'mbc-v24';
+var CACHE = 'mbc-v25';
 var FILES = [
   './',
   './index.html',
@@ -18,6 +18,7 @@ var FILES = [
   './calendar.html',
   './data.html',
   './shift-lib.js',
+  './guard.js',
   './pos-config.js',
   './inv-log.js',
   './settings.html',
@@ -61,19 +62,21 @@ self.addEventListener('activate', function (e) {
   self.clients.claim();
 });
 
-// Network first so updates show up, fall back to cache when offline
+// Cache first, refreshed in the background. Pages open at once even on a weak connection;
+// the newest files are picked up on the next open (and the version number above forces a full refresh).
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
   var u = new URL(e.request.url);
   // only handle our own files and the Firebase library files; leave all Firebase network traffic alone
   if (u.origin !== self.location.origin && u.hostname !== 'www.gstatic.com') return;
   e.respondWith(
-    fetch(e.request).then(function (res) {
-      var copy = res.clone();
-      caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
-      return res;
-    }).catch(function () {
-      return caches.match(e.request).then(function (r) { return r || caches.match('./index.html'); });
+    caches.match(e.request).then(function (cached) {
+      var net = fetch(e.request).then(function (res) {
+        if (res && res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(e.request, copy); }); }
+        return res;
+      }).catch(function () { return cached || caches.match('./index.html'); });
+      if (cached) { e.waitUntil(net.catch(function () {})); return cached; }
+      return net;
     })
   );
 });

@@ -61,7 +61,7 @@
 
   <div class="pos-body">
     <div class="pos-left">
-      <div class="searchbar"><input id="q" type="search" placeholder="Search the menu" autocomplete="off"><button class="ordbtn" id="ordBtn" type="button">Orders</button></div>
+      <div class="searchbar"><input id="q" type="search" placeholder="Search the menu" autocomplete="off"><button class="ordbtn" id="drwBtn" type="button" style="display:none">Drawer</button><button class="ordbtn" id="ordBtn" type="button">Orders</button></div>
       <div class="catbar" id="chips"></div>
       <main id="main"><div id="items"></div></main>
       <div class="cartbar"><button id="openCart" disabled><span id="cartCount">No items yet</span><b class="num" id="cartTotal">₱0</b></button></div>
@@ -78,6 +78,7 @@
 <script src="menu-default.js"></script>
 <script src="app-data.js"></script>
 <script src="shift-lib.js"></script>
+<script src="guard.js"></script>
 <script src="pos-config.js"></script>
 <script>
 (function () {
@@ -134,11 +135,22 @@
   function paintItems() {
     var m = D.getMenu(), q = $('q').value.trim().toLowerCase(), h = '', list;
     if (q) {
+      var terms = q.split(/\s+/);
+      var hit = function (text) { text = String(text).toLowerCase(); return terms.every(function (t) { return text.indexOf(t) !== -1; }); };
       list = m.items.filter(function (it) {
         var c = D.cat(it.cat);
-        return (it.name + ' ' + (it.desc || '') + ' ' + (c ? c.name : '')).toLowerCase().indexOf(q) !== -1;
+        return hit(it.name + ' ' + (it.desc || '') + ' ' + (c ? c.name + ' ' + (c.note || '') : ''));
       });
-      h = list.map(function (it) { return rowHtml(it, true); }).join('') || '<div class="empty">Nothing matches "' + esc(q) + '".</div>';
+      h = list.map(function (it) { return rowHtml(it, true); }).join('');
+      var ex = '';
+      (m.addonGroups || []).forEach(function (g) {
+        (g.items || []).forEach(function (a) {
+          if (!hit(a.name + ' ' + (a.desc || '') + ' ' + g.name)) return;
+          ex += '<button class="prow" data-ex="' + esc(g.id + '|' + a.id) + '"><div class="what"><b>' + esc(a.name) + '</b><span class="s">' + esc(g.name) + '</span></div><div class="r num">' + D.pesoShort(a.price) + '</div></button>';
+        });
+      });
+      if (ex) h += '<div class="sect">Extras</div>' + ex;
+      if (!h) h = '<div class="empty">Nothing matches "' + esc(q) + '".</div>';
     } else if (view === 'best') {
       list = m.items.filter(function (it) { return it.best; });
       h = list.map(function (it) { return rowHtml(it, true); }).join('') || '<div class="empty">No best sellers marked yet. You can mark them in the Menu editor.</div>';
@@ -454,22 +466,37 @@
     if (c > 0 || !parts.length) parts.unshift('Cash ' + money(s.tend) + (s.change ? ' (change ' + money(s.change) + ')' : ''));
     return parts.join(' + ');
   }
-  function completeSale() {
+  var charging = false;
+  async function completeSale() {
+    if (charging) return;
     var cfg = CFG(), n = payNums();
     if (n.over) { D.toast('Non-cash amounts are more than the total'); return; }
     if (n.tend < n.cashDue) { D.toast('Cash received is less than the amount due'); return; }
-    var splits = cfg.methods.map(function (m) {
-      return { id: m.id, name: m.name, cash: m.id === 'cash', amt: m.id === 'cash' ? n.tend : (parseFloat(pay.amt[m.id]) || 0) };
-    });
-    var sale = S.makeSale(cart, { disc: n.d, discs: n.recs, splits: splits, type: orderType });
-    if (fixing) sale.fix = fixing.id;
-    if (!S.addSale(sale)) { D.toast('Could not save the sale. Storage may be full.'); return; }
-    if (fixing) { S.refund(fixing.id); fixing = null; }
-    lastSale = sale; cart = []; setType('dine'); saveCart(); paintBar(); paintOrdBtn();
-    mode = 'done'; renderDone();
-    if (cfg.autoPrint) {
-      MBPrinter.print('pos', function (p) { S.saleReceipt(p, sale); }).then(function (m) { if (m) D.toast(m); }).catch(function () {});
-    }
+    charging = true;
+    try {
+      var manual = n.recs.some(function (r) { return r.id === 'manual'; }), why = '';
+      if (manual) {
+        var g = await MBGuard.ask({ title: 'Manual discount', detail: 'This order has an "Other discount". Total discount ' + money(n.d) + '.' });
+        if (!g.ok) return;
+        why = g.reason;
+      }
+      var splits = cfg.methods.map(function (m) {
+        return { id: m.id, name: m.name, cash: m.id === 'cash', amt: m.id === 'cash' ? n.tend : (parseFloat(pay.amt[m.id]) || 0) };
+      });
+      var sale = S.makeSale(cart, { disc: n.d, discs: n.recs, splits: splits, type: orderType });
+      if (fixing) sale.fix = fixing.id;
+      if (!S.addSale(sale)) { D.toast('Could not save the sale. Storage may be full.'); return; }
+      if (manual) MBGuard.log('Manual discount', 'Order ' + sale.n + ' · discount ' + money(n.d) + ' of ' + money(n.gross), why);
+      if (fixing) { S.refund(fixing.id); fixing = null; }
+      lastSale = sale; cart = []; setType('dine'); saveCart(); paintBar(); paintOrdBtn();
+      mode = 'done'; renderDone();
+      var cash = S.cashOf(sale) > 0;
+      if (cfg.autoPrint) {
+        MBPrinter.print('pos', function (p) { S.saleReceipt(p, sale); }, { sale: true, cash: cash }).then(function (m) { if (m) D.toast(m); }).catch(function () {});
+      }
+      // drawer printers that are not printing this receipt still open the drawer
+      if (MBPrinter.hasDrawer()) MBPrinter.openDrawer({ cash: cash, skipReceiptPrinters: cfg.autoPrint }).then(function (m) { if (m) D.toast(m); }).catch(function () {});
+    } finally { charging = false; }
   }
   function renderDone() {
     var s = lastSale;
@@ -590,12 +617,25 @@
     if (t.closest('[data-hback]')) { renderHist(); return; }
     var s = hId ? saleById(hId) : null; if (!s) return;
     if (t.id === 'ordRefund') {
-      if (confirm('Refund ' + saleLabel(s) + ' for ' + money(s.net) + '? This cannot be undone.')) { S.refund(s.id); paintOrdBtn(); renderOrd(s.id); D.toast('Order refunded'); }
+      if (confirm('Refund ' + saleLabel(s) + ' for ' + money(s.net) + '? This cannot be undone.')) {
+        var g1 = await MBGuard.ask({ title: 'Refund ' + saleLabel(s), detail: money(s.net) + ' will be counted as money returned.' });
+        if (!g1.ok) return;
+        S.refund(s.id); MBGuard.log('Refund', saleLabel(s) + ' · ' + money(s.net), g1.reason);
+        paintOrdBtn(); renderOrd(s.id); D.toast('Order refunded');
+      }
     } else if (t.id === 'ordDel') {
       if (confirm('Delete ' + saleLabel(s) + ' (' + money(s.net) + ') for good?\nIt is removed from sales and from this shift, as if it never happened. If money was given back, use Refund instead.')) {
-        if (S.deleteSale(s.id)) { hId = null; paintOrdBtn(); renderHist(); D.toast('Order deleted'); } else D.toast('Could not delete this order');
+        var g2 = await MBGuard.ask({ title: 'Delete ' + saleLabel(s), detail: money(s.net) + ' will be removed completely.' });
+        if (!g2.ok) return;
+        var lbl = saleLabel(s) + ' · ' + money(s.net) + ' · ' + linesText(s);
+        if (S.deleteSale(s.id)) { MBGuard.log('Delete order', lbl, g2.reason); hId = null; paintOrdBtn(); renderHist(); D.toast('Order deleted'); } else D.toast('Could not delete this order');
       }
-    } else if (t.id === 'ordFix') { correctOrder(s); }
+    } else if (t.id === 'ordFix') {
+      var g3 = await MBGuard.ask({ title: 'Correct ' + saleLabel(s), detail: 'The old order is refunded and a new one is opened.' });
+      if (!g3.ok) return;
+      MBGuard.log('Correct order', saleLabel(s) + ' · ' + money(s.net), g3.reason);
+      correctOrder(s);
+    }
     else if (t.id === 'ordPrint') {
       var old = t.textContent; t.disabled = true; t.textContent = 'Printing...';
       try { var m = await MBPrinter.print('pos', function (p) { S.saleReceipt(p, s); }); if (m) D.toast(m); }
@@ -603,6 +643,14 @@
     }
   });
 
+  /* manual cash drawer button (shown only when a printer has a drawer set up) */
+  function paintDrw() { try { $('drwBtn').style.display = MBPrinter.hasDrawer() ? '' : 'none'; } catch (e) {} }
+  $('drwBtn').onclick = async function () {
+    var m = await MBPrinter.openDrawer({ manual: true });
+    MBGuard.log('Drawer opened (no sale)', '', '');
+    D.toast(m || 'Drawer opened');
+  };
+  paintDrw();
   paintChips(); paintItems(); paintBar(); paintOrdBtn();
   try { MBPrinter.warm(); } catch (e) {}
   window.addEventListener('pageshow', function () { paintChips(); paintItems(); paintOrdBtn(); });

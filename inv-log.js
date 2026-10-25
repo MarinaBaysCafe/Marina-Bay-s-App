@@ -27,7 +27,8 @@
     if (newQ > oldQ) push(id, 'add', newQ - oldQ, oldQ); else push(id, 'used', oldQ - newQ, oldQ);
   }
   /* the form on the calendar: kind is 'add' or 'used'; changes the stock count too. Returns '' on success or a message. */
-  function adjust(kind, id, n) {
+  function adjust(kind, id, n, date) {
+    if (date && date < localToday()) return lateAdjust(kind, id, n, date);
     var it = item(id); if (!it) return 'Item not found';
     if (it.qty == null) return 'Count this item first on the Inventory page';
     var before = it.qty, after = kind === 'add' ? before + n : Math.max(0, before - n);
@@ -35,6 +36,36 @@
     it.qty = after; it.updated = D().todayPH();
     if (!D().saveInventory()) { it.qty = before; return 'Could not save. Storage may be full.'; }
     onQty(id, before, after); return '';
+  }
+  /* A change for an earlier day that was forgotten at the time (up to LATE_DAYS back).
+     The stock count today changes by the same amount, the entry is placed at the start of that day, and every
+     later entry for the item is shifted so Beg + Added - Used = End still holds on every day. */
+  var LATE_DAYS = 30;
+  function lateAdjust(kind, id, n, date) {
+    var it = item(id); if (!it) return 'Item not found';
+    if (it.qty == null) return 'Count this item first on the Inventory page';
+    var today = localToday();
+    if (date < addDays(today, -LATE_DAYS)) return 'Late entries only go back ' + LATE_DAYS + ' days';
+    var delta = kind === 'add' ? n : -n;
+    if (it.qty + delta < 0) return 'Not enough stock now to take ' + n + ' off';
+    // stock at the start of that day = stock now minus everything recorded from that day until now
+    var net = 0;
+    Object.keys(log.days).forEach(function (d) {
+      if (d < date) return;
+      (log.days[d][id] || []).forEach(function (e) { if (e.k === 'add') net += e.n; else if (e.k === 'auto' || e.k === 'used') net -= e.n; });
+    });
+    var beg = it.qty - net;
+    var before = it.qty;
+    it.qty = it.qty + delta; it.updated = D().todayPH();
+    if (!D().saveInventory()) { it.qty = before; return 'Could not save. Storage may be full.'; }
+    Object.keys(log.days).forEach(function (d) {
+      if (d < date) return;
+      (log.days[d][id] || []).forEach(function (e) { e.b += delta; });
+    });
+    var day = log.days[date] || (log.days[date] = {}), l = day[id] || (day[id] = []);
+    l.unshift({ k: kind === 'add' ? 'add' : 'used', n: n, b: beg, t: Date.now(), late: today });
+    if (!save()) return 'Saved the stock, but the daily record could not be saved. Storage may be full.';
+    return '';
   }
   /* rows per date: {item, beg, added, auto, man, used, end} */
   function range(from, to) {
@@ -129,5 +160,5 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory-' + from.slice(0, 7) + '.xlsx';
     document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
-  window.MBInvLog = { clear: clear, range: range, adjust: adjust, onQty: onQty, logAuto: logAuto, exportXlsx: exportXlsx, localToday: localToday, addDays: addDays };
+  window.MBInvLog = { clear: clear, range: range, adjust: adjust, onQty: onQty, logAuto: logAuto, exportXlsx: exportXlsx, localToday: localToday, addDays: addDays, LATE_DAYS: LATE_DAYS };
 })();

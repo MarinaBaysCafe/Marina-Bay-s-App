@@ -21,7 +21,9 @@ Do not share the repository or the web address outside the cafe.
   - **Discounts:** turn on PWD (20%), Senior Citizen (20%) or Employee (10%). Several can be on at once and they add up. Each can apply to the whole order or to one item. There is also a free ₱ or % field for other discounts.
   - **Payment:** each payment method has its own amount. Cash can be left blank to cover the rest. Press **Rest** next to a method to fill in whatever is still unpaid after the other amounts. Use the Exact, 100, 200, 500 and 1,000 buttons for cash received.
   - Press **Complete sale**. The receipt prints automatically if a printer is set up (turn this off in Settings). **Print again** is on the next screen.
+- **Search** also finds Extras (like Rice) and words in a section's note.
 - **Orders** shows today's orders.
+  - **PIN approval:** if a PIN is set in Security, Refund, Correct, Delete, Delete shift and any manual "Other discount" ask for the PIN (and an optional reason). Each one is written to the **Activity log** in Settings (kept on that phone only).
   - **Refund:** counts the order as money returned and keeps it in the records.
   - **Correct:** refunds the order and opens a new one with the same items to change.
   - **Delete:** removes the order completely. Only available for orders in the shift that is still open. Use Refund if money was given back.
@@ -48,7 +50,7 @@ Do not share the repository or the web address outside the cafe.
 ## Calendar (calendar.html)
 
 - A month grid that opens on today. Teal numbers are net sales and brown numbers are expenses. Tap a day to see its sales, shifts, money counter, expenses, cups and lids from sales, and the inventory table.
-- Used / Added can be recorded here for today only. The table and the xlsx button work for any day.
+- Used / Added can be recorded here for today or for any of the last 30 days. For an earlier day the stock count today changes by the same amount and the days after it are updated. The Inventory page's record form has a date field too. The table and the xlsx button work for any day.
 
 ## Settings (settings.html)
 
@@ -60,6 +62,7 @@ Do not share the repository or the web address outside the cafe.
 
 ## Printers and receipts (printers.html)
 
+- **Cash drawer:** plug the drawer into the printer's RJ11/RJ12 socket. In the printer's settings pick **Open on every charge** or **Open on cash sales only**, and press **Test**. If nothing opens, try **Pin 5**. A **Drawer** button then appears in the POS to open it without a sale (this is logged). Does not work with the print dialog.
 - Add a printer (Bluetooth or USB) and choose it once. It stays paired until you press **Unpair**. Bluetooth printers reconnect by themselves when the POS opens or the link drops.
 - Web Bluetooth does not work in iPhone Safari. Use Chrome on Android or a computer.
 
@@ -93,4 +96,5 @@ All dates and times use Philippine time (Asia/Manila), whatever the device's own
 - The look (colors, fonts, header) lives in `brand.css`. Change the colors at the top and every page follows.
 - Starting data lives in `menu-default.js` and `inventory-default.js`. Once something is changed in an app, the app keeps its own copy on that device.
 - `pos-config.js` holds the editable settings, `inv-log.js` the daily inventory record and the .xlsx writer, `shift-lib.js` sales and shifts, `cloud.js` the sync.
-- When a file changes, raise the version number in `sw.js` so phones load the new files.
+- When a file changes, raise the version number in `sw.js` so phones load the new files. The app now opens from the phone's saved copy first (fast on weak internet) and updates in the background, so a new version shows on the second open unless the version number is raised.
+- `guard.js` holds the PIN approval and the activity log.
