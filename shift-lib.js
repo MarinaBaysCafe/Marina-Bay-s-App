@@ -102,17 +102,42 @@
              tend: r2(cashTend), change: r2(Math.max(0, cashTend - ca)), ref: 0 };
   }
   function cashOf(s) { return s.ca != null ? s.ca : (s.pay === 'cash' ? s.net : 0); }
-  function addSale(s) { sales.sales.push(s); return saveSales(); }
-  function refund(id) { var s = sales.sales.filter(function (x) { return x.id === id; })[0]; if (!s || s.ref) return false; s.ref = 1; s.refT = Date.now(); return saveSales(); }
+  /* Cups and lids come off the stock the moment an order is saved (s.inv remembers what was taken) and go back on a refund or delete. */
+  function stockOut(s) {
+    var items = D.getInventory().items || [], need = {}, took = {};
+    (s.lines || []).forEach(function (l) { [l.cup, l.lid].forEach(function (k) { if (k) need[k] = (need[k] || 0) + l.qty; }); });
+    Object.keys(need).forEach(function (k) {
+      var it = items.filter(function (i) { return String(i.name).toLowerCase() === k.toLowerCase(); })[0]; if (!it || it.qty == null) return;
+      var before = it.qty, after = Math.max(0, before - need[k]); if (after === before) return;
+      it.qty = after; it.updated = phDate(Date.now()); took[it.id] = before - after;
+      if (window.MBInvLog) window.MBInvLog.logAuto(it.id, before, after);
+    });
+    s.inv = took; if (Object.keys(took).length) D.saveInventory();
+  }
+  function stockBack(s) {
+    if (!s || !s.inv) return; var items = D.getInventory().items || [], back = false;
+    Object.keys(s.inv).forEach(function (id) {
+      var it = items.filter(function (i) { return i.id === id; })[0]; if (!it || it.qty == null) return;
+      var before = it.qty; it.qty = before + s.inv[id]; it.updated = phDate(Date.now()); back = true;
+      if (window.MBInvLog) window.MBInvLog.restoreAuto(id, before, it.qty);
+    });
+    s.inv = null; if (back) D.saveInventory();
+  }
+  /* orders of a shift saved before this existed, or on another phone, are taken off when the shift closes */
+  function settleShift(no) { sales.sales.forEach(function (s) { if (s.shift === no && !s.ref && s.inv === undefined) stockOut(s); }); saveSales(); }
+  function addSale(s) { stockOut(s); sales.sales.push(s); return saveSales(); }
+  function refund(id) { var s = sales.sales.filter(function (x) { return x.id === id; })[0]; if (!s || s.ref) return false; s.ref = 1; s.refT = Date.now(); stockBack(s); return saveSales(); }
   /* Delete an order. Only orders of the shift that is still open (a closed shift's report is already fixed). */
   function deleteSale(id) {
     var s = sales.sales.filter(function (x) { return x.id === id; })[0], cur = shifts.cur;
     if (!s || !cur || s.shift !== cur.no) return false;
+    if (!s.ref) stockBack(s);
     sales.sales = sales.sales.filter(function (x) { return x.id !== id; }); return saveSales();
   }
   /* Delete a closed shift and all of its orders. Expenses and the money counter are left alone. */
   function deleteShift(no) {
     var h = shifts.hist.filter(function (x) { return x.no === no; })[0]; if (!h) return false;
+    sales.sales.forEach(function (x) { if (x.shift === no && !x.ref) stockBack(x); });
     sales.sales = sales.sales.filter(function (x) { return x.shift !== no; });
     shifts.hist = shifts.hist.filter(function (x) { return x.no !== no; });
     return saveSales() && saveShifts();
@@ -370,7 +395,7 @@
   window.MBShift = {
     num: num, sg: sg, fmtDT: fmtDT, fmtTime: fmtTime, phDate: phDate, r2: r2, cupName: cupName, lidName: lidName,
     sales: function () { return sales.sales; }, salesOf: salesOf, makeSale: makeSale, cashOf: cashOf, addSale: addSale, refund: refund, deleteSale: deleteSale, deleteShift: deleteShift,
-    shifts: function () { return shifts; }, saveShifts: saveShifts, index: buildIndex, day: day, month: month, deductInventory: deductInventory, current: current, start: start, close: close, report: report, lastActual: lastActual,
+    shifts: function () { return shifts; }, saveShifts: saveShifts, index: buildIndex, day: day, month: month, deductInventory: deductInventory, settleShift: settleShift, current: current, start: start, close: close, report: report, lastActual: lastActual,
     lastStart: lastStart, saveSales: saveSales, posName: posName, setPosName: setPosName, lastUser: lastUser, countedCash: countedCash, expensesBetween: expensesBetween,
     reportReceipt: reportReceipt, saleReceipt: saleReceipt, orderReceipt: orderReceipt, typeText: typeText, cafe: cafe
   };

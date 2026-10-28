@@ -70,8 +70,27 @@
     d.items = d.items || [];
     return d;
   }
+  /* old list -> new sheet layout: same-name items keep their count, unit and note; old items that held stock and are not on the new list are kept under "Bar" */
+  function migrateInventory(old) {
+    var d = defaultInventory(), left = old.items.slice();
+    d.items.forEach(function (n) {
+      var k = left.findIndex(function (o) { return String(o.name).toLowerCase() === n.name.toLowerCase(); });
+      if (k < 0) return; var o = left.splice(k, 1)[0];
+      n.qty = o.qty; n.unit = o.unit || ''; n.note = o.note || ''; n.updated = o.updated || '';
+    });
+    left.forEach(function (o) { if (o.qty > 0) { o.group = 'Bar'; d.items.push(o); } });
+    d.countedOn = old.countedOn || ''; try { localStorage.setItem(INV_KEY, JSON.stringify(d)); } catch (e) {}
+    return d;
+  }
   function loadInventory() {
-    try { var v = JSON.parse(localStorage.getItem(INV_KEY)); if (v && Array.isArray(v.items)) return v; } catch (e) {}
+    try {
+      var v = JSON.parse(localStorage.getItem(INV_KEY));
+      if (v && Array.isArray(v.items)) {
+        var want = (window.MB_DEFAULT_INVENTORY || {}).layout || 1;
+        var cur = v.layout || (v.items.some(function (i) { return i.group === 'Stockroom'; }) ? want : 1);
+        return cur < want ? migrateInventory(v) : v;
+      }
+    } catch (e) {}
     return defaultInventory();
   }
   var inventory = loadInventory();

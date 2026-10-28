@@ -42,12 +42,13 @@ Do not share the repository or the web address outside the cafe.
 - The starting cash is filled in with the same amount as the last shift. The extra cash over it is the cash sales (less cash paid out).
 
 - **Shift** tab: the open shift, its sales so far, and the buttons to start or end it.
-- **Ending a shift:** enter the actual cash. The report shows the expected cash, the difference, sales, discounts, refunds, cash and e-wallet totals. The cups and lids used are taken off Inventory automatically.
+- **Ending a shift:** enter the actual cash. The report shows the expected cash, the difference, sales, discounts, refunds, cash and e-wallet totals. Cups and lids are already taken off Inventory as each order is made.
 - **History** tab: every closed shift. Open one to print it, see its day in the Calendar, or **Delete shift**. Deleting asks twice and removes the shift and all of its orders (expenses and the money counter are left alone). It can offer to put the cups and lids back in stock.
 - Closed shifts cannot be reopened.
 
 ## Inventory (inventory.html)
 
+- **Sheet** tab (opens first): the paper count sheet. Pick Bar, Stockroom or Kitchen, then fill **OI | IN | TOTAL | OUT | CI** for today. OI is yesterday's CI. Type what came IN, then either what went OUT or the closing count CI; the other one and the TOTAL are worked out. **Cups and lids come off OUT automatically with every order** and go back if the order is refunded or deleted. Enter jumps to the next item. Past days can be viewed, and **Print** gives the sheet on paper. The list follows the July 9, 2026 sheets; a phone with the older list is moved over automatically and keeps its counts for items with the same name.
 - **Stock** tab: every item with a count. Use + and − or type the count. Items start as "out of stock" until you count them.
 - **Record used or added stock** (at the top): choose **Used** (loss, spoilage, anything not counted from sales) or **Added** (a delivery or restock), search the item, enter the amount and press Done. The stock count changes right away.
 - **Daily** tab: the same table as the Calendar. **Item | Beg | Added | Used | End | Units**, grouped by category.

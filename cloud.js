@@ -60,12 +60,12 @@
       to: function (o) {
         var m = {};
         (o.items || []).forEach(function (i) { m['item:' + i.id] = S(i); });
-        m.ord = S({ items: ids(o.items), countedOn: o.countedOn || '' });
+        m.ord = S({ items: ids(o.items), countedOn: o.countedOn || '', layout: o.layout || 0 });
         return m;
       },
       from: function (m, ex) {
         var od = ord(m);
-        return { countedOn: od.countedOn || (ex && ex.countedOn) || '', items: ordered(collect(m, 'item:'), od.items) };
+        return { countedOn: od.countedOn || (ex && ex.countedOn) || '', layout: od.layout || 0, items: ordered(collect(m, 'item:'), od.items) };
       }
     },
     recipes: {

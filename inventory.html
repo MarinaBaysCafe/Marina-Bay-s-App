@@ -16,7 +16,17 @@
 <link rel="apple-touch-icon" href="icons/counter-apple-touch-icon.png">
 <link rel="stylesheet" href="app.css">
 <style>
-  .tabs { grid-template-columns: repeat(2, 1fr); }
+  .tabs { grid-template-columns: repeat(4, 1fr); }
+  table.sh { width: 100%; border-collapse: collapse; font-size: 15px; } table.sh th { font-size: 12px; color: var(--muted); padding: 6px 3px; text-align: center; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; }
+  table.sh td { padding: 3px; border-top: 1px solid var(--line); text-align: center; } table.sh td:first-child, table.sh th:first-child { text-align: left; padding-left: 12px; min-width: 130px; }
+  table.sh tr.g td { background: var(--soft); font-weight: 650; text-align: left; font-size: 13px; color: var(--muted); }
+  table.sh input { width: 54px; height: 38px; text-align: center; font: inherit; border: 1.5px solid #d6cfc3; border-radius: 6px; background: #fff; color: var(--ink); -moz-appearance: textfield; }
+  table.sh input:disabled { border-color: transparent; background: none; } table.sh input:focus { outline: none; border-color: var(--teal); }
+  table.sh input::-webkit-outer-spin-button, table.sh input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  table.sh td.tot { font-weight: 650; } table.sh td.ci input { font-weight: 650; background: var(--soft); } table.sh tr.zero td:first-child, table.sh tr.zero td.ci input { color: var(--bad); }
+  table.sh small { display: block; font-size: 10px; color: var(--teal); line-height: 1.1; }
+  .shbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px 0; } .shbar .field { flex: 1 1 130px; min-width: 0; }
+  @media print { .top, .tabs, .chips, .shbar button, .addbar, .rec-note { display: none !important; } table.sh input { border: 0 !important; background: none !important; } }
   .grp { padding: 14px 16px 6px; font-size: 13px; font-weight: 650; color: var(--muted); background: var(--soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
   .irow { display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--line); min-height: 58px; }
   .irow .what { flex: 1; min-width: 0; background: none; border: none; text-align: left; font: inherit; color: var(--ink); padding: 4px 0; cursor: pointer; }
@@ -81,7 +91,13 @@
   </div>
 
   <main id="main">
-    <section class="view on" id="v-stock"><div id="list"></div></section>
+    <section class="view on" id="v-sheet">
+      <div class="shbar"><input class="field" id="shDate" type="date" aria-label="Date"><input class="field" id="shBy" type="text" maxlength="30" placeholder="Barista / Staff" autocomplete="off"><input class="field" id="shQ" type="search" placeholder="Search" autocomplete="off"><button class="secondary" id="shPrint" type="button">Print</button></div>
+      <div class="chips" id="shChips"></div>
+      <div class="dl-wrap" style="padding:0"><table class="sh" id="shTable"></table></div>
+      <div class="rec-note" style="padding:8px 16px 16px">OI is the opening count (yesterday's CI). Type what came <b>IN</b>, then either what went <b>OUT</b> or the closing count <b>CI</b>; the other one and the TOTAL work themselves out. Cups and lids come off OUT by themselves with every order and go back on a refund. Press Enter to jump to the next item.</div>
+    </section>
+    <section class="view" id="v-stock"><div id="list"></div></section>
 
     <!-- ITEM EDIT -->
     <section class="view" id="v-daily">
@@ -113,7 +129,8 @@
 
   <div class="addbar" id="addbar"><button class="add-btn" id="addItem">Add item</button></div>
   <nav class="tabs">
-    <button class="tab on" data-v="stock">Stock</button>
+    <button class="tab on" data-v="sheet">Sheet</button>
+    <button class="tab" data-v="stock">Stock</button>
     <button class="tab" data-v="daily">Daily</button>
     <button class="tab" data-v="data">Data</button>
   </nav>
@@ -311,12 +328,60 @@
     MBInvLog.exportXlsx(y + '-' + m + '-01', y + '-' + m + '-' + (new Date(Date.UTC(+y, +m, 0)).getUTCDate()), d);
   };
 
+  /* ---------- the sheet: OI | IN | TOTAL | OUT | CI ---------- */
+  var shSec = 'Bar', BYK = 'marinabays_invsheet_v1';
+  function secOf(it) { return String(it.group || 'Other').split(' \u00b7 ')[0]; }
+  function byAll() { try { return JSON.parse(localStorage.getItem(BYK)) || {}; } catch (e) { return {}; } }
+  function nv(x) { return x == null ? '' : x; }
+  function cellsHtml(r, live) {
+    var dis = live ? '' : ' disabled', tot = r.beg == null ? '' : r.beg + r.added;
+    function inp(f, v, ph) { return '<input data-f="' + f + '" type="number" inputmode="decimal" min="0" step="any" value="' + nv(v) + '" placeholder="' + (ph || '') + '"' + dis + '>'; }
+    return '<td>' + inp('oi', r.beg) + '</td><td>' + inp('in', r.added || '') + '</td><td class="tot">' + tot + '</td><td>' + inp('out', r.used || '') +
+      (r.auto ? '<small>orders ' + r.auto + '</small>' : '') + '</td><td class="ci">' + inp('ci', r.end) + '</td>';
+  }
+  function paintSheet() {
+    var d = $('shDate').value || MBInvLog.localToday(), live = d === MBInvLog.localToday(), rows = MBInvLog.range(d, d)[d], secs = [], h = '', lastG = null, q = $('shQ').value.trim().toLowerCase();
+    V.items.forEach(function (i) { var s = secOf(i); if (secs.indexOf(s) < 0) secs.push(s); });
+    if (secs.indexOf(shSec) < 0) shSec = secs[0] || 'Bar';
+    $('shChips').innerHTML = secs.map(function (s) { return '<button class="chip' + (s === shSec ? ' on' : '') + '" data-s="' + esc(s) + '">' + esc(s) + '</button>'; }).join('');
+    h = '<thead><tr><th>Item</th><th>OI</th><th>IN</th><th>TOTAL</th><th>OUT</th><th>CI</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      if (secOf(r.item) !== shSec || (q && r.item.name.toLowerCase().indexOf(q) < 0)) return;
+      var g = r.item.group || 'Other'; if (g !== lastG) { lastG = g; if (g !== shSec) h += '<tr class="g"><td colspan="6">' + esc(g.split(' \u00b7 ').slice(1).join(' ')) + '</td></tr>'; }
+      h += '<tr data-id="' + esc(r.item.id) + '"' + (r.end === 0 ? ' class="zero"' : '') + '><td>' + esc(r.item.name) + (r.item.unit ? ' <span style="color:var(--muted);font-size:12px">(' + esc(r.item.unit) + ')</span>' : '') + '</td>' + cellsHtml(r, live) + '</tr>';
+    });
+    $('shTable').innerHTML = h + '</tbody>'; $('shBy').value = byAll()[d] || ''; $('shBy').disabled = !live;
+  }
+  $('shDate').value = MBInvLog.localToday(); $('shDate').max = MBInvLog.localToday();
+  $('shDate').onchange = paintSheet; $('shQ').oninput = paintSheet; $('shPrint').onclick = function () { window.print(); };
+  $('shBy').onchange = function () { var a = byAll(); a[$('shDate').value || MBInvLog.localToday()] = $('shBy').value.trim(); try { localStorage.setItem(BYK, JSON.stringify(a)); } catch (e) {} };
+  $('shChips').addEventListener('click', function (e) { var b = e.target.closest('button[data-s]'); if (b) { shSec = b.getAttribute('data-s'); paintSheet(); } });
+  $('shTable').addEventListener('change', function (e) {
+    var i = e.target, tr = i.closest('tr[data-id]'); if (!tr || !i.dataset.f) return;
+    var id = tr.dataset.id, f = i.dataset.f, raw = i.value.trim(), n = raw === '' ? (f === 'in' || f === 'out' ? 0 : NaN) : Number(raw);
+    if (isNaN(n) || n < 0) { D.toast('Enter a number'); }
+    else { var msg = MBInvLog.setDay(id, f, n); if (msg) D.toast(msg); }
+    var r = MBInvLog.range(MBInvLog.localToday(), MBInvLog.localToday())[MBInvLog.localToday()].filter(function (x) { return x.item.id === id; })[0];
+    var nxt = document.activeElement; tr.innerHTML = '<td>' + tr.firstChild.innerHTML + '</td>' + cellsHtml(r, true); tr.className = r.end === 0 ? 'zero' : '';
+    if (nxt && nxt.dataset && nxt.dataset.f) { var t = tr.querySelector('input[data-f="' + nxt.dataset.f + '"]'); if (t && nxt.closest('tr') === tr) t.focus(); }
+  });
+  $('shTable').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target.dataset.f) return; e.preventDefault(); e.target.blur();
+    var tr = e.target.closest('tr'), nx = tr.nextElementSibling; while (nx && !nx.dataset.id) nx = nx.nextElementSibling;
+    var t = nx && nx.querySelector('input[data-f="' + e.target.dataset.f + '"]'); if (t) t.focus();
+  });
+  $('shTable').addEventListener('focusin', function (e) { if (e.target.dataset.f) e.target.select(); });
+  function sheetOpen() { return $('v-sheet').classList.contains('on') && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('#shTable')); }
+  window.addEventListener('focus', function () { if (sheetOpen()) { V = D.getInventory(); paintSheet(); } });
+  window.addEventListener('storage', function () { if (sheetOpen()) paintSheet(); });
+
   function setView(v) {
-    ['stock', 'item', 'daily', 'data'].forEach(function (n) { $('v-' + n).classList.toggle('on', n === v); });
-    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-v') === (v === 'data' || v === 'daily' ? v : 'stock')); });
+    ['sheet', 'stock', 'item', 'daily', 'data'].forEach(function (n) { $('v-' + n).classList.toggle('on', n === v); });
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-v') === (v === 'data' || v === 'daily' || v === 'sheet' ? v : 'stock')); });
     $('stockTop').style.display = v === 'stock' ? '' : 'none';
     $('addbar').style.display = v === 'stock' ? '' : 'none';
     $('main').scrollTop = 0;
+    if (v === 'sheet') paintSheet();
     if (v === 'stock') paintAll();
     if (v === 'daily') paintDaily();
     if (v === 'data') $('stat').textContent = V.items.length + ' items, ' + outCount() + ' out of stock';
@@ -353,7 +418,7 @@
     }
   };
 
-  paintAll();
+  setView('sheet');
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }

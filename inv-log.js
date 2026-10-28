@@ -20,6 +20,26 @@
   /* called by shift close after it lowers cups/lids */
   function clear() { log = { days: {} }; try { localStorage.removeItem(KEY); } catch (e) {} }
   function logAuto(id, before, after) { var n = before - after; if (n > 0) push(id, 'auto', n, before); }
+  function restoreAuto(id, before, after) { var n = after - before; if (n > 0) push(id, 'auto', -n, before); }
+  /* One cell of today's sheet. field: oi (opening), in, out (total out; orders already counted stay), ci (closing count).
+     Typing CI works out OUT (or IN if you counted more than expected). Returns '' or a message. */
+  function setDay(id, field, v) {
+    var it = item(id), d = localToday(); if (!it) return 'Item not found';
+    var r = range(d, d)[d].filter(function (x) { return x.item.id === id; })[0], beg = r.beg, add = r.added, auto = r.auto, man = r.man;
+    if (beg == null) { if (field === 'oi' || field === 'ci') beg = v; else beg = 0; add = 0; man = 0; }
+    if (field === 'oi') beg = v;
+    else if (field === 'in') add = v;
+    else if (field === 'out') man = Math.max(0, v - auto);
+    else if (field === 'ci') { var base = beg + add - auto; if (v <= base) man = base - v; else { man = 0; add = v - beg + auto; } }
+    var end = beg + add - auto - man; if (end < 0) return 'Out is more than the total';
+    var day = log.days[d] || (log.days[d] = {}), keep = (day[id] || []).filter(function (e) { return e.k === 'auto'; }), t = Date.now(), es = [];
+    if (add > 0) es.push({ k: 'add', n: add, t: t });
+    es = es.concat(keep); if (man > 0) es.push({ k: 'used', n: man, t: t });
+    if (!es.length) es.push({ k: 'init', n: beg, t: t });
+    var run = beg; es.forEach(function (e) { e.b = run; run += e.k === 'add' ? e.n : e.k === 'init' ? 0 : -e.n; });
+    it.qty = end; it.updated = D().todayPH(); day[id] = es;
+    return D().saveInventory() && save() ? '' : 'Could not save. Storage may be full.';
+  }
   /* called by the Inventory page whenever a count is changed there */
   function onQty(id, oldQ, newQ) {
     if (newQ == null || oldQ === newQ) return;
@@ -160,5 +180,5 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory-' + from.slice(0, 7) + '.xlsx';
     document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
-  window.MBInvLog = { clear: clear, range: range, adjust: adjust, onQty: onQty, logAuto: logAuto, exportXlsx: exportXlsx, localToday: localToday, addDays: addDays, LATE_DAYS: LATE_DAYS };
+  window.MBInvLog = { clear: clear, range: range, adjust: adjust, onQty: onQty, logAuto: logAuto, restoreAuto: restoreAuto, setDay: setDay, exportXlsx: exportXlsx, localToday: localToday, addDays: addDays, LATE_DAYS: LATE_DAYS };
 })();
