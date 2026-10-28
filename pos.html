@@ -512,9 +512,9 @@
   }
   function openStart() {
     mode = 'start';
-    var last = S.lastActual();
+    var last = S.lastStart();
     $('sheet').innerHTML = '<div class="sh-head"><div class="t"><b>Start a shift</b><span>Needed before a sale can be saved</span></div><button class="icon-btn" data-close aria-label="Close">&times;</button></div><div class="sh-body">' +
-      '<div class="help2">Sales, cash, and expenses are totaled for each shift. Count the cash in the drawer and enter it as the starting cash.</div>' +
+      '<div class="help2">Sales, cash, and expenses are totaled for each shift. The starting cash is the same as last time. Change it only if the drawer starts with a different amount. Cash sales are the extra cash on top of it.</div>' +
       '<div class="frow"><label for="stCash">Starting cash</label><input class="field num" id="stCash" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="' + esc(last) + '"></div>' +
       '<div class="frow"><label for="stBy">Opened by</label><input class="field" id="stBy" type="text" maxlength="30" placeholder="Name" value="' + esc(S.lastUser()) + '" autocomplete="off"></div>' +
       '</div><div class="sh-foot"><button class="text-btn" data-close>Cancel</button><button class="primary" id="startGo">Start shift and charge</button></div>';

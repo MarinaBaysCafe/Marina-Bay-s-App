@@ -39,7 +39,7 @@
   <div class="top">
     <a href="index.html" aria-label="Home" style="display:flex"><img src="icons/logo-64.png" alt=""></a>
     <div><b>Marina Bay's Cafe</b><span class="sub">Shift</span></div>
-    <nav class="apps" aria-label="Apps"><a href="pos.html">POS</a><a href="index.html">All apps</a></nav>
+    <nav class="apps" aria-label="Apps"><a href="pos.html">POS</a><a href="analytics.html">Analytics</a><a href="index.html">All apps</a></nav>
   </div>
 
   <main id="main">
@@ -91,7 +91,7 @@
     var h = '<div class="sect">Cash drawer</div>' +
       row('Starting cash', N(r.startCash)) + row('Cash payments', N(r.cashPayments)) + row('Cash refunds', N(r.cashRefunds)) +
       row('Paid out (cash expenses)', N(r.paidOut)) + row('Expected cash amount', N(r.expected), 1);
-    if (r.actual !== null) h += row('Actual cash amount', N(r.actual)) + '<div class="rrow strong"><span>Difference</span><span class="num ' + (r.diff < 0 ? 'neg' : r.diff > 0 ? 'pos' : '') + '">' + S.sg(r.diff) + '</span></div>';
+    if (r.actual !== null) h += row('Actual cash amount', N(r.actual)) + row('Extra over starting cash', N(r.actual - r.startCash), 0, 'Should match cash sales less cash paid out') + '<div class="rrow strong"><span>Difference</span><span class="num ' + (r.diff < 0 ? 'neg' : r.diff > 0 ? 'pos' : '') + '">' + S.sg(r.diff) + '</span></div>';
     h += '<div class="sect">Sales summary</div>' +
       row('Orders', String(r.orders)) + row('Gross sales', N(r.gross), 1) + row('Refunds', N(r.refunds)) + row('Discounts', N(r.discounts)) +
       row('Net sales', N(r.net), 1) + row('Cash', N(r.cash)) + row('E-wallet', N(r.ewallet));
@@ -132,12 +132,12 @@
   function paintShift() {
     var cur = S.current(), h = '';
     if (!cur) {
-      var last = S.lastActual(), hist = S.shifts().hist, prev = hist[hist.length - 1];
+      var last = S.lastStart(), hist = S.shifts().hist, prev = hist[hist.length - 1];
       h += '<div class="state"><b>No shift is open</b><span>Start a shift so sales can be saved and totaled.</span></div>' +
         '<div class="frow"><label for="stCash">Starting cash</label><input class="field num" id="stCash" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="' + esc(last) + '"></div>' +
         '<div class="frow"><label for="stBy">Opened by</label><input class="field" id="stBy" type="text" maxlength="30" placeholder="Name" value="' + esc(S.lastUser()) + '" autocomplete="off"></div>' +
         '<div class="actions"><button class="primary" id="startBtn">Start shift</button></div>';
-      if (prev) h += '<div class="mini">Last shift: number ' + prev.no + ', closed ' + esc(S.fmtDT(prev.closedAt)) + '. The starting cash is filled in from its actual cash amount.</div>';
+      if (prev) h += '<div class="mini">Last shift: number ' + prev.no + ', closed ' + esc(S.fmtDT(prev.closedAt)) + '. The starting cash is filled in with the same amount as before. Change it only if the drawer starts with a different amount.</div>';
     } else {
       var r = S.report(cur);
       h += '<div class="state open"><b>Shift ' + cur.no + ' is open</b><span>Since ' + esc(S.fmtDT(cur.openedAt)) + (cur.openedBy ? ' · ' + esc(cur.openedBy) : '') + ' · ' + esc(cur.pos) + '</span></div>' +

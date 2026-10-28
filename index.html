@@ -50,6 +50,8 @@
   .links b { display: block; font-weight: 600; font-size: 15px; }
   .links span { font-size: 12px; color: var(--muted); }
   .links i { font-style: normal; font-size: 20px; color: var(--muted); }
+  .checkbar { margin: 12px 16px 0; padding: 12px 14px; border: 1px solid #efc9c5; background: #fbeceb; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; }
+  .checkbar a { color: var(--bad); font-weight: 650; text-decoration: none; white-space: nowrap; }
   .copy { margin: 0; padding: 18px 16px 24px; font-size: 12px; color: var(--muted); }
 </style>
 <link rel="stylesheet" href="wide.css">
@@ -71,16 +73,22 @@
     </section>
     <a class="bigbtn" href="pos.html">Open point of sale</a>
 
-    <h2 class="sec">Apps</h2>
+    <div class="checkbar" id="checkBar" hidden></div>
+    <h2 class="sec">Every day</h2>
     <nav class="tiles">
-      <a class="tile" href="pos.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg><b>Point of sale</b><span id="tPos">Take orders and charge</span></a>
-      <a class="tile" href="shift.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><b>Shift</b><span id="tShift">Start and end a shift</span></a>
-      <a class="tile" href="calendar.html"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b>Calendar</b><span id="tCal">Every day at a glance</span></a>
-      <a class="tile" href="money-counter.html"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg><b>Money counter</b><span id="tCount">Count the cash drawer</span></a>
       <a class="tile" href="expenses.html"><svg viewBox="0 0 24 24"><path d="M5 2v20l2.3-1.5L9.7 22l2.3-1.5 2.3 1.5 2.4-1.5L19 22V2l-2.3 1.5L14.3 2 12 3.5 9.7 2 7.3 3.5z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><b>Expenses</b><span id="tExp">Record what was spent</span></a>
-      <a class="tile" href="inventory.html"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg><b>Inventory</b><span id="tInv">Stock list</span></a>
-      <a class="tile" href="recipes.html"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg><b>Recipes</b><span id="tRec">Ingredients and cost</span></a>
-      <a class="tile" href="menu.html"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><b>Menu</b><span id="tMenu">Items, sizes, prices</span></a>
+      <a class="tile" href="money-counter.html"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg><b>Money counter</b><span id="tCount">Count the cash drawer</span></a>
+      <a class="tile" href="analytics.html"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><b>Analytics</b><span id="tAna">Income vs expenses</span></a>
+      <a class="tile" href="calendar.html"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b>Calendar</b><span id="tCal">Every day at a glance</span></a>
+    </nav>
+
+    <h2 class="sec">Manage</h2>
+    <nav class="links">
+      <a href="shift.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div class="t"><b>Shift</b><span id="tShift">Start, end and review shifts</span></div><i>&#8250;</i></a>
+      <a href="inventory.html"><svg viewBox="0 0 24 24"><path d="M21 16V8l-9-5-9 5v8l9 5z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg><div class="t"><b>Inventory</b><span id="tInv">Stock list</span></div><i>&#8250;</i></a>
+      <a href="menu.html"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><div class="t"><b>Menu</b><span id="tMenu">Items, sizes, prices</span></div><i>&#8250;</i></a>
+      <a href="recipes.html"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg><div class="t"><b>Recipes</b><span id="tRec">Ingredients and cost</span></div><i>&#8250;</i></a>
+      <a href="checks.html"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg><div class="t"><b>Check data</b><span id="tChk">Find records that do not make sense</span></div><i>&#8250;</i></a>
     </nav>
 
     <h2 class="sec">Settings</h2>
@@ -99,6 +107,7 @@
 <script src="inventory-default.js"></script>
 <script src="app-data.js"></script>
 <script src="shift-lib.js"></script>
+<script src="checks.js"></script>
 <script>
 (function () {
   var D = window.MBData, S = window.MBShift, esc = D.esc, $ = function (id) { return document.getElementById(id); };
@@ -121,8 +130,10 @@
 
   // short lines on the tiles that tie the apps together
   var inv = D.getInventory().items, out = inv.filter(function (i) { return i.qty === 0; }).length, menu = D.getMenu();
-  $('tPos').textContent = x.orders ? x.orders + (x.orders === 1 ? ' order today' : ' orders today') : 'Take orders and charge';
   $('tShift').textContent = cur ? 'Shift ' + cur.no + ' is open' : 'No shift open';
+  var nChk = window.MBChecks ? MBChecks.count() : 0;
+  if (nChk) { $('checkBar').hidden = false; $('checkBar').innerHTML = '<span>' + nChk + (nChk === 1 ? ' record' : ' records') + ' may not make sense</span><a href="checks.html">Review</a>'; $('tChk').textContent = nChk + ' to review'; }
+  $('tAna').textContent = x.net || x.expCash + x.expOnline ? 'Today ' + N(x.net - x.expCash - x.expOnline) + ' profit' : 'Income vs expenses';
   var t = new Date(today + 'T00:00:00Z'), mo = S.month(t.getUTCFullYear(), t.getUTCMonth()).total;
   $('tCal').textContent = mo.net ? 'This month ' + N(mo.net) : 'Every day at a glance';
   $('tCount').textContent = x.counted ? 'Counted ' + N(x.counted) + ' today' : 'Count the cash drawer';

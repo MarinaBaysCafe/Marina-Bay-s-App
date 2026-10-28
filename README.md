@@ -28,7 +28,18 @@ Do not share the repository or the web address outside the cafe.
   - **Correct:** refunds the order and opens a new one with the same items to change.
   - **Delete:** removes the order completely. Only available for orders in the shift that is still open. Use Refund if money was given back.
 
+## Analytics (analytics.html)
+
+- Pick a range (7 days, 30 days, this month, last month, 3 months, all time or your own dates). Cards show income, expenses and profit against the period before.
+- Charts: income and expenses with a profit line, running total, where the money goes, sales mix, best weekdays, busy hours, top items and the last 6 months. Tap a bar to see its numbers.
+
+## Check data (checks.html)
+
+- Finds records that may not make sense: a shift left open, a big cash difference, an odd starting cash, orders with no shift or no amount, cash received below the bill, very large or double expenses, expenses dated in the future, and a money count that differs from the shift. Each one has choices (fix, delete or keep). Nothing changes until you tap.
+
 ## Shift (shift.html)
+
+- The starting cash is filled in with the same amount as the last shift. The extra cash over it is the cash sales (less cash paid out).
 
 - **Shift** tab: the open shift, its sales so far, and the buttons to start or end it.
 - **Ending a shift:** enter the actual cash. The report shows the expected cash, the difference, sales, discounts, refunds, cash and e-wallet totals. The cups and lids used are taken off Inventory automatically.

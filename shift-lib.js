@@ -126,6 +126,11 @@
   function rememberUser(n) { try { localStorage.setItem(USER_KEY, n || ''); } catch (e) {} }
   function current() { return shifts.cur; }
   function lastActual() { var h = shifts.hist[shifts.hist.length - 1]; return h && h.actual != null ? h.actual : ''; }
+  // the starting cash entered on the last shift (open or closed). Next shift starts with the same amount.
+  function lastStart() {
+    var c = shifts.cur, h = shifts.hist[shifts.hist.length - 1], v = c ? c.startCash : (h ? h.startCash : null);
+    return v == null ? '' : v;
+  }
   function start(cash, by) {
     if (shifts.cur) return shifts.cur;
     var maxNo = shifts.hist.reduce(function (m, h) { return Math.max(m, h.no); }, 0);
@@ -243,13 +248,14 @@
       closedAt: opts.closedAt || null, closedBy: opts.closedBy || '', startCash: r2(sh.startCash),
       cashPayments: r2(cashPay), cashRefunds: r2(cashRef), paidOut: r2(paidOut), expected: expected, actual: actual,
       diff: actual === null ? null : r2(actual - expected),
+      excess: actual === null ? null : r2(actual - sh.startCash), cashSales: r2(cashPay - cashRef),
       gross: r2(gross), refunds: r2(refunds), discounts: r2(disc), net: r2(gross - refunds - disc), cash: r2(salesCash), ewallet: r2(ewallet), orders: ss.length,
       expenses: ex, expCash: r2(expCash), expOnline: r2(expOnline), drinks: drinks, cups: cups, lids: lids
     };
   }
-  function close(closedBy, actual) {
+  function close(closedBy, actual, at) {
     var cur = shifts.cur; if (!cur) return null;
-    var r = report(cur, { closedAt: Date.now(), closedBy: String(closedBy || '').trim(), actual: actual });
+    var r = report(cur, { closedAt: at || Date.now(), closedBy: String(closedBy || '').trim(), actual: actual });
     shifts.hist.push(r); shifts.cur = null; rememberUser(r.closedBy); saveShifts(); return r;
   }
 
@@ -365,7 +371,7 @@
     num: num, sg: sg, fmtDT: fmtDT, fmtTime: fmtTime, phDate: phDate, r2: r2, cupName: cupName, lidName: lidName,
     sales: function () { return sales.sales; }, salesOf: salesOf, makeSale: makeSale, cashOf: cashOf, addSale: addSale, refund: refund, deleteSale: deleteSale, deleteShift: deleteShift,
     shifts: function () { return shifts; }, saveShifts: saveShifts, index: buildIndex, day: day, month: month, deductInventory: deductInventory, current: current, start: start, close: close, report: report, lastActual: lastActual,
-    posName: posName, setPosName: setPosName, lastUser: lastUser, countedCash: countedCash, expensesBetween: expensesBetween,
+    lastStart: lastStart, saveSales: saveSales, posName: posName, setPosName: setPosName, lastUser: lastUser, countedCash: countedCash, expensesBetween: expensesBetween,
     reportReceipt: reportReceipt, saleReceipt: saleReceipt, orderReceipt: orderReceipt, typeText: typeText, cafe: cafe
   };
 })();
